@@ -4,3 +4,6 @@ version = "0.1.0"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
+
+[dependencies.pandora]
+path = "src/pandora-rs"
