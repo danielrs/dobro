@@ -18,7 +18,7 @@ fn main() {
         include_urls: false,
     };
 
-    let request = PandoraRequest::new(Method::AuthPartnerLogin)
+    let request = Request::new(Method::AuthPartnerLogin)
         .with_body(serde_json::to_value(login));
 
     let client = Client::new();
