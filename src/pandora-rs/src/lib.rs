@@ -2,6 +2,9 @@
 #![feature(custom_attribute)]
 
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate serde_derive;
 
 extern crate serde;
@@ -11,7 +14,11 @@ extern crate hyper;
 mod auth;
 mod error;
 mod method;
-// mod request;
+mod response;
+mod request;
+
+pub use auth::login;
+
 // pub use method::*;
 // pub use request::*;
 
@@ -31,7 +38,7 @@ const ENDPOINTS : [Endpoint<'static>; 4] = [
     Endpoint("http://internal-tuner.pandora.com/services/json/"),
     Endpoint("https://internal-tuner.pandora.com/services/json/"),
 ];
-const DEFAULT_ENDPOINT : Endpoint<'static> = ENDPOINTS[0];
+pub const DEFAULT_ENDPOINT : Endpoint<'static> = ENDPOINTS[0];
 
 /// The authentication details.
 pub enum Credentials {

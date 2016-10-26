@@ -1,6 +1,7 @@
 /// Enumerated errors for this API
 
 use std::error::Error as StdError;
+use std::io::Error as IoError;
 use hyper::error::Error as HttpError;
 use serde_json::error::Error as CodecError;
 
@@ -8,6 +9,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
+    Io(IoError),
     Codec(CodecError),
     Http(HttpError),
     Fail { message: String, code: u32 },
@@ -16,6 +18,7 @@ pub enum Error {
 impl StdError for Error {
     fn description(&self) -> &str {
         match *self {
+            Error::Io(ref e) => e.description(),
             Error::Codec(ref e) => e.description(),
             Error::Http(ref e) => e.description(),
             Error::Fail { ref message, .. } => message.as_str(),
@@ -24,6 +27,7 @@ impl StdError for Error {
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
+            Error::Io(ref e) => Some(e),
             Error::Codec(ref e) => Some(e),
             Error::Http(ref e) => Some(e),
             _ => None,
@@ -34,6 +38,12 @@ impl StdError for Error {
 impl ::std::fmt::Display for Error {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+impl From<IoError> for Error {
+    fn from(error: IoError) -> Error {
+        Error::Io(error)
     }
 }
 
