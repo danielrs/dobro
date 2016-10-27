@@ -1,22 +1,26 @@
 #![feature(proc_macro)]
 #![feature(custom_attribute)]
 
+extern crate crypto;
+
+extern crate hyper;
+
 #[macro_use]
 extern crate log;
 
 #[macro_use]
 extern crate serde_derive;
-
 extern crate serde;
 extern crate serde_json;
-extern crate hyper;
+
 extern crate url;
 
 mod auth;
+mod crypt;
 mod error;
 mod method;
-mod response;
 mod request;
+mod response;
 
 pub use auth::{Credentials, login};
 

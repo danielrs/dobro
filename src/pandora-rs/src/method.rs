@@ -32,3 +32,12 @@ impl ToString for Method {
         }
     }
 }
+
+impl Method {
+    pub fn is_encrypted(&self) -> bool {
+        match *self {
+            Method::TestCheckLicensing | Method::AuthPartnerLogin => false,
+            _ => true
+        }
+    }
+}

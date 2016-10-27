@@ -1,18 +1,19 @@
 use super::Endpoint;
 use auth::Credentials;
+use crypt::encrypt;
+use error::{Error, Result};
 use method::Method;
 use response::{Stat, Response};
-use error::{Error, Result};
 
 use std::io::Read;
-
-use serde_json;
-use serde::Deserialize;
-use serde_json::value::{Value};
 
 use hyper::client::{RequestBuilder, Client};
 use hyper::header::ContentLength;
 use hyper::method::Method as HttpMethod;
+
+use serde_json;
+use serde::Deserialize;
+use serde_json::value::{Value};
 
 use url::Url;
 
@@ -26,7 +27,11 @@ pub fn request_with_credentials<T>(
     client: &Client, http_method: HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>,
     credentials: &Credentials) -> Result<T> where T: Deserialize {
 
-    let body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
+    let mut body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
+    if method.is_encrypted() {
+        body = encrypt(&"6#26FRL$ZWD".to_owned(), &body);
+    }
+
     let builder = authenticate(client, http_method, endpoint, method, credentials);
 
     println!("{:?}", body);

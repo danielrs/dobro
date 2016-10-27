@@ -4,8 +4,9 @@ version = "0.1.0"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
-log = "0.3.6"
 hyper = "0.9.10"
+log = "0.3.6"
+rust-crypto = "0.2.36"
 serde = "0.8"
 serde_derive = "0.8"
 serde_json = "0.8"
