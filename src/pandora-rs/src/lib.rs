@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 extern crate hyper;
+extern crate url;
 
 mod auth;
 mod error;
@@ -17,12 +18,13 @@ mod method;
 mod response;
 mod request;
 
-pub use auth::login;
+pub use auth::{Credentials, login};
 
 // pub use method::*;
 // pub use request::*;
 
 /// Endpoint of the Pandora API
+#[derive(Copy, Clone)]
 pub struct Endpoint<'a>(&'a str);
 
 impl<'a> ToString for Endpoint<'a> {
@@ -39,22 +41,6 @@ const ENDPOINTS : [Endpoint<'static>; 4] = [
     Endpoint("https://internal-tuner.pandora.com/services/json/"),
 ];
 pub const DEFAULT_ENDPOINT : Endpoint<'static> = ENDPOINTS[0];
-
-/// The authentication details.
-pub enum Credentials {
-    None,
-    Token {
-        auth_token: String,
-        partner_id: String,
-        user_id: String,
-    }
-}
-
-impl Default for Credentials {
-    fn default() -> Credentials {
-        Credentials::None
-    }
-}
 
 /// Main interface for interacting with the Pandora API
 pub struct Pandora<'a> {

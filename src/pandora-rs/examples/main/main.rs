@@ -4,7 +4,7 @@ extern crate serde_json;
 use pandora::*;
 
 fn main() {
-    let res = login(DEFAULT_ENDPOINT, "ers.daniel+media@gmail.com", "test");
+    let res = login(DEFAULT_ENDPOINT, "john.doe@gmail.com", "johndoe");
 
     match res {
         Ok(res) => println!("Ok: {:?}", res),

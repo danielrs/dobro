@@ -9,6 +9,7 @@ hyper = "0.9.10"
 serde = "0.8"
 serde_derive = "0.8"
 serde_json = "0.8"
+url = "1.2.2"
 
 [[example]]
 name = "main"

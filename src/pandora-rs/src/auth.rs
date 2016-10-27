@@ -1,12 +1,64 @@
-use super::{Endpoint, Credentials};
+use super::Endpoint;
 use error::Result;
 use method::Method;
-use request::request;
+use request::{request, request_with_credentials};
 
 use hyper::client::Client;
 use hyper::method::Method as HttpMethod;
 
 use serde_json;
+use serde_json::value::Value;
+
+/// The authentication details.
+pub struct Credentials {
+    // Goes on query
+    pub auth_token: Option<String>,
+    pub partner_id: Option<String>,
+    pub user_id: Option<String>,
+    // Goes in request body
+    pub sync_time: Option<String>,
+    pub user_auth_token: Option<String>,
+}
+
+impl Default for Credentials {
+    fn default() -> Credentials {
+        Credentials {
+            auth_token: None,
+            partner_id: None,
+            user_id: None,
+            sync_time: None,
+            user_auth_token: None,
+        }
+    }
+}
+
+impl Credentials {
+    pub fn with_partner(partner: PartnerLogin) -> Self {
+        Credentials {
+            auth_token: Some(partner.partner_auth_token),
+            partner_id: Some(partner.partner_id),
+            sync_time: Some(partner.sync_time),
+            .. Credentials::default()
+        }
+    }
+
+    pub fn with_user(user: UserLogin) -> Self {
+        Credentials {
+            auth_token: Some(user.user_auth_token.clone()),
+            user_auth_token: Some(user.user_auth_token),
+            .. Credentials::default()
+        }
+    }
+
+    pub fn with_user_partner(user: UserLogin, partner: PartnerLogin) -> Self {
+        Credentials {
+            auth_token: Some(partner.partner_auth_token),
+            partner_id: Some(partner.partner_id),
+            sync_time: Some(partner.sync_time),
+            .. Credentials::with_user(user)
+        }
+    }
+}
 
 /// Partner login request information.
 #[derive(Serialize)]
@@ -69,42 +121,45 @@ pub struct UserLoginRequest {
     sync_time: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct UserLogin {
-    #[serde(rename="userAuthToken")]
-    user_auth_token: String,
-}
-
 impl UserLoginRequest {
-    pub fn new(username: String, password: String, partner: PartnerLogin) -> Self {
+    pub fn new(username: String, password: String, partner: &PartnerLogin) -> Self {
         UserLoginRequest {
             login_type: "user".to_owned(),
             username: username,
             password: password,
-            partner_auth_token: partner.partner_auth_token,
-            sync_time: partner.sync_time,
+            partner_auth_token: partner.partner_auth_token.clone(),
+            sync_time: partner.sync_time.clone(),
         }
     }
 }
 
-// /// User login information.
-// struct UserLogin<'a>
+#[derive(Debug, Deserialize)]
+pub struct UserLogin {
+    #[serde(rename="userAuthToken")]
+    pub user_auth_token: String,
+}
 
 pub fn login(endpoint: Endpoint, user: &str, password: &str) -> Result<UserLogin> {
     let client = Client::new();
-    let body = try!(serde_json::to_string(&PartnerLoginRequest::new_android()));
+    let body = serde_json::to_value(&PartnerLoginRequest::new_android());
     let partner = try!(request(
             &client,
             HttpMethod::Post,
-            &endpoint,
+            endpoint,
             Method::AuthPartnerLogin,
             Some(body)));
-    let body = try!(serde_json::to_string(&UserLoginRequest::new(user.to_owned(), password.to_owned(), partner)));
-    request(
+
+    let body = serde_json::to_value(
+        &UserLoginRequest::new(user.to_owned(), password.to_owned(), &partner)
+    );
+    let creds = Credentials::with_partner(partner);
+
+    request_with_credentials(
         &client,
         HttpMethod::Post,
-        &endpoint,
+        endpoint,
         Method::AuthUserLogin,
-        Some(body)
+        Some(body),
+        &creds,
     )
 }
