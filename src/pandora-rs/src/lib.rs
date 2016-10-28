@@ -16,7 +16,7 @@ extern crate serde_json;
 extern crate url;
 
 mod auth;
-mod crypt;
+pub mod crypt;
 mod error;
 mod method;
 mod request;

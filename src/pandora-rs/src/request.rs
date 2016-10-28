@@ -6,6 +6,7 @@ use method::Method;
 use response::{Stat, Response};
 
 use std::io::Read;
+use std::ffi::OsString;
 
 use hyper::client::{RequestBuilder, Client};
 use hyper::header::ContentLength;
@@ -28,13 +29,15 @@ pub fn request_with_credentials<T>(
     credentials: &Credentials) -> Result<T> where T: Deserialize {
 
     let mut body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
-    if method.is_encrypted() {
-        body = encrypt(&"6#26FRL$ZWD".to_owned(), &body);
-    }
+    // if method.is_encrypted() {
+    //     let key: OsString = "6#26FRL$ZWD".into();
+    //     let obody: OsString = body.clone().into();
+    //     body = encrypt(&key, &obody);
+    // }
 
     let builder = authenticate(client, http_method, endpoint, method, credentials);
 
-    println!("{:?}", body);
+    // println!("{:?}", body);
 
     let mut res = try!(builder.body(&body).send());
     let mut body = match res.headers.clone().get::<ContentLength>() {
@@ -77,7 +80,7 @@ fn authenticate<'a>(
         }
     }
 
-    println!("URL: {:?}", url);
+    // println!("URL: {:?}", url);
     client.request(http_method, url)
 }
 
