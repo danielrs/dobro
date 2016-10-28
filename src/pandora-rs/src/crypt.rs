@@ -8,49 +8,58 @@ use crypto::symmetriccipher::{BlockEncryptor, BlockDecryptor};
 const PADDING_BYTE: u8 = 2;
 
 /// Returns the encrypted input using the given key.
+///
+/// The returned string is encoded in hexadecimal notation,
+/// which is a UTF-8 string, so it's fine to return it using
+/// the `String` type.
 pub fn encrypt(key: &str, input: &str) -> String {
-    let bytes = cipher_with(key.as_bytes(), input.as_bytes(), |blowfish, from, mut to| {
-        blowfish.encrypt_block(&from, &mut to);
+    let cipherbytes = cipher_with(key.as_bytes(), input.as_bytes(), |blowfish, from, mut to| {
+        blowfish.encrypt_block(from, to);
     });
 
-    // Generate hexadecimal representation of `bytes`.
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
+    // Generate hexadecimal representation of `cipherbytes`.
+    let mut output = String::with_capacity(cipherbytes.len() * 2);
+    for b in cipherbytes {
         output.push_str(&format!("{:02x}", b));
     }
     output
 }
 
 /// Returns the decrypted input using the given key.
+///
+/// Because Strings must be UTF-8 compilant, and decrypting
+/// doesn't guarantees an UTF-8 string, we return
+/// a OsString which doesn't have to be UTF-8 compilant.
 pub fn decrypt(key: &str, hex_input: &str) -> OsString {
     use std::u8;
     use std::str;
     use std::ffi::OsStr;
     use std::os::unix::ffi::OsStrExt;
 
+    // Gets bytes from hexadecimal representation.
     let mut input = Vec::with_capacity(hex_input.len());
     for chunk in hex_input.as_bytes().chunks(2) {
-        // We already now that the chunk is utf-8 compilant as it comes
-        // from a &str.
+        // `chunk` is utf-8 since it is comming from &str.
         let fragment = unsafe { str::from_utf8_unchecked(chunk) };
         let byte = u8::from_str_radix(fragment, 16).unwrap_or(0);
         input.push(byte);
     }
 
-    let mut bytes = cipher_with(key.as_bytes(), &input, |blowfish, from, mut to| {
-        blowfish.decrypt_block(&from, &mut to);
+    let mut cipherbytes = cipher_with(key.as_bytes(), &input, |blowfish, from, mut to| {
+        blowfish.decrypt_block(from, to);
     });
-    if let Some(index) = bytes.iter().position(|&b| b == PADDING_BYTE) {
-        // Go ahead and ignore all bytes after the null character (\0).
-        bytes.truncate(index);
+
+    // Ignore up to `PADDING_BYTE`.
+    if let Some(index) = cipherbytes.iter().position(|&b| b == PADDING_BYTE) {
+        cipherbytes.truncate(index);
     }
 
-    OsStr::from_bytes(&bytes).to_owned()
+    OsStr::from_bytes(&cipherbytes).to_owned()
 }
 
-/// Divides the input in blocks and cyphers using the given closure.
+/// Divides the input in blocks and ciphers it using the given closure.
 fn cipher_with<F>(key: &[u8], input: &[u8], mut func: F) -> Vec<u8>
-    where F: FnMut(Blowfish, &mut [u8], &mut [u8]) {
+    where F: Fn(&Blowfish, &[u8], &mut [u8]) {
 
     let blowfish = Blowfish::new(key);
     let block_size = <Blowfish as BlockEncryptor>::block_size(&blowfish);
@@ -63,9 +72,9 @@ fn cipher_with<F>(key: &[u8], input: &[u8], mut func: F) -> Vec<u8>
     let mut output : Vec<u8> = Vec::with_capacity(input_len);
     unsafe { output.set_len(input_len); }
 
-    // Encrypts input and saves it into output
-    for (mut ichunk, mut ochunk) in input.chunks_mut(block_size).zip(output.chunks_mut(block_size)) {
-        func(blowfish, ichunk, ochunk);
+    // Encrypts input and into output
+    for (ichunk, mut ochunk) in input.chunks(block_size).zip(output.chunks_mut(block_size)) {
+        func(&blowfish, ichunk, ochunk);
     }
 
     output

@@ -11,68 +11,105 @@ use serde_json;
 use serde_json::value::Value;
 
 /// The authentication details.
+#[derive(Debug)]
 pub struct Credentials {
-    // Holds partner and encrypt / decrypt key
-    pub partner: Partner,
-    // Auth information in query string
-    pub auth_token: Option<String>,
-    pub partner_id: Option<String>,
-    pub user_id: Option<String>,
-    // Auth information in body
-    pub sync_time: Option<String>,
-    pub user_auth_token: Option<String>,
-}
-
-impl Default for Credentials {
-    fn default() -> Credentials {
-        Credentials {
-            partner: Partner::default(),
-            auth_token: None,
-            partner_id: None,
-            user_id: None,
-            sync_time: None,
-            user_auth_token: None,
-        }
-    }
+    // Encryption / Decryption information.
+    encrypt_key: String,
+    decrypt_key: String,
+    // Partner info.
+    partner_id: Option<String>,
+    partner_auth_token: Option<String>,
+    sync_time: Option<u64>,
+    // User info.
+    user_id: Option<String>,
+    user_auth_token: Option<String>,
 }
 
 impl Credentials {
-    pub fn new() -> Self {
-        Credentials::default()
-    }
-
-    pub fn with_partner(partner: Partner) -> Self {
+    pub fn new(partner: &Partner) -> Self {
         Credentials {
-            partner: partner,
-            auth_token: None,
+            encrypt_key: partner.encrypt_password.clone(),
+            decrypt_key: partner.decrypt_password.clone(),
+
             partner_id: None,
-            user_id: None,
+            partner_auth_token: None,
             sync_time: None,
+
+            user_id: None,
             user_auth_token: None,
         }
-
     }
 
-    // pub fn set_partner_login(&mut self, partner_login: PartnerLogin) {
-    //     self.auth_token: Some(partner_login.partner_auth_token),
-    //     self.partner_id: Some(partner_login.partner_id);
-    //     self.sync_time: Some(
-    // }
+    /// Consumes PartnerLogin and sets the required information
+    /// in the credentials.
+    pub fn set_partner_login(&mut self, partner_login: &PartnerLogin) {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
 
-    pub fn with_user(user: UserLogin) -> Self {
-        Credentials {
-            auth_token: Some(user.user_auth_token.clone()),
-            user_auth_token: Some(user.user_auth_token),
-            .. Credentials::default()
+        let sync_time_bytes: Vec<u8> = decrypt(self.decrypt_key(), &partner_login.sync_time)
+            .as_os_str().as_bytes().iter().skip(4).cloned().collect();
+        let sync_time_string = OsStr::from_bytes(&sync_time_bytes)
+            .to_owned().into_string().unwrap_or("0".to_owned());
+        let sync_time = sync_time_string.parse::<u64>().unwrap_or(0);
+
+
+        self.partner_id = Some(partner_login.partner_id.clone());
+        self.partner_auth_token = Some(partner_login.partner_auth_token.clone());
+        self.sync_time = Some(sync_time);
+    }
+
+    /// Consumes UserLogin and sets the required information
+    /// in the credentials.
+    pub fn set_user_login(&mut self, user_login: &UserLogin) {
+        self.user_id = user_login.user_id.clone();
+        self.user_auth_token = Some(user_login.user_auth_token.clone());
+    }
+
+    /// Returns the encryption key.
+    pub fn encrypt_key(&self) -> &str {
+        &self.encrypt_key
+    }
+
+    /// Returns the decryption key.
+    pub fn decrypt_key(&self) -> &str {
+        &self.decrypt_key
+    }
+
+
+    /// Returns a Vector of query pairs from the credentials.
+    pub fn query_pairs<'a>(&'a self) -> Vec<(&'a str, &'a str)> {
+        let mut pairs = Vec::new();
+
+        if let Some(ref partner_auth_token) = self.partner_auth_token {
+            pairs.push(("auth_token", partner_auth_token.as_str()));
+        }
+
+        if let Some(ref user_auth_token) = self.user_auth_token {
+            pairs.push(("auth_token", user_auth_token.as_str()));
+        }
+
+        if let Some(ref partner_id) = self.partner_id {
+            pairs.push(("partner_id", partner_id.as_str()));
+        }
+
+        if let Some(ref user_id) = self.user_id {
+            pairs.push(("user_id", user_id.as_str()));
+        }
+
+        pairs
+    }
+
+    pub fn sync_time<'a>(&'a self) -> Option<&'a u64> {
+        match self.sync_time {
+            Some(ref sync_time) => Some(&sync_time),
+            None => None
         }
     }
 
-    pub fn with_user_partner(user: UserLogin, partner: PartnerLogin) -> Self {
-        Credentials {
-            auth_token: Some(partner.partner_auth_token),
-            partner_id: Some(partner.partner_id),
-            sync_time: Some(partner.sync_time),
-            .. Credentials::with_user(user)
+    pub fn user_auth_token<'a>(&'a self) -> Option<&'a str> {
+        match self.user_auth_token {
+            Some(ref user_auth_token) => Some(user_auth_token.as_str()),
+            None => None
         }
     }
 }
@@ -121,10 +158,10 @@ impl Partner {
 /// Partner login.
 #[derive(Debug, Deserialize)]
 pub struct PartnerLogin {
-    #[serde(rename="partnerAuthToken")]
-    pub partner_auth_token: String,
     #[serde(rename="partnerId")]
     pub partner_id: String,
+    #[serde(rename="partnerAuthToken")]
+    pub partner_auth_token: String,
     #[serde(rename="syncTime")]
     pub sync_time: String,
 }
@@ -156,36 +193,39 @@ impl UserLoginRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UserLogin {
+    #[serde(rename="userId")]
+    pub user_id: Option<String>,
     #[serde(rename="userAuthToken")]
     pub user_auth_token: String,
 }
 
-pub fn login(endpoint: Endpoint, user: &str, password: &str) -> Result<PartnerLogin> {
+pub fn login(endpoint: Endpoint, username: &str, password: &str) -> Result<Credentials> {
 
-    unimplemented!()
-    // let client = Client::new();
-    // let body = serde_json::to_value(&Partner::default());
-    // let partner : PartnerLogin = try!(request(
-    //         &client,
-    //         HttpMethod::Post,
-    //         endpoint,
-    //         Method::AuthPartnerLogin,
-    //         Some(body)));
-    // println!("USING: {}", Partner::default().decrypt_password);
-    // println!("{} : {:?}", partner.sync_time, decrypt(&Partner::default().decrypt_password, &partner.sync_time));
-    // Ok(partner)
+    let client = Client::new();
+    let partner = Partner::default();
+    let mut credentials = Credentials::new(&partner);
 
-    // let body = serde_json::to_value(
-    //     &UserLoginRequest::new(user.to_owned(), password.to_owned(), &partner)
-    // );
-    // let creds = Credentials::with_partner(partner);
+    let partner_login : PartnerLogin = try!(request(
+        &client,
+        HttpMethod::Post,
+        endpoint,
+        Method::AuthPartnerLogin,
+        Some(serde_json::to_value(&partner)),
+    ));
+    credentials.set_partner_login(&partner_login);
 
-    // request_with_credentials(
-    //     &client,
-    //     HttpMethod::Post,
-    //     endpoint,
-    //     Method::AuthUserLogin,
-    //     Some(body),
-    //     &creds,
-    // )
+    let user_login_body = serde_json::to_value(
+        &UserLoginRequest::new(username.to_owned(), password.to_owned(), &partner_login)
+    );
+    let user_login : UserLogin = try!(request_with_credentials(
+        &client,
+        HttpMethod::Post,
+        endpoint,
+        Method::AuthUserLogin,
+        Some(user_login_body),
+        Some(&credentials),
+    ));
+    credentials.set_user_login(&user_login);
+
+    Ok(credentials)
 }

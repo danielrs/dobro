@@ -21,19 +21,19 @@ use url::Url;
 pub fn request<T>(
     client: &Client, http_method: HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>)
     -> Result<T> where T: Deserialize {
-    request_with_credentials(client, http_method, endpoint, method, body, &Credentials::default())
+    request_with_credentials(client, http_method, endpoint, method, body, None)
 }
 
 pub fn request_with_credentials<T>(
     client: &Client, http_method: HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>,
-    credentials: &Credentials) -> Result<T> where T: Deserialize {
+    credentials: Option<&Credentials>) -> Result<T> where T: Deserialize {
 
     let mut body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
-    // if method.is_encrypted() {
-    //     let key: OsString = "6#26FRL$ZWD".into();
-    //     let obody: OsString = body.clone().into();
-    //     body = encrypt(&key, &obody);
-    // }
+    if method.is_encrypted() {
+        if let Some(credentials) = credentials {
+            body = encrypt(credentials.encrypt_key(), &body);
+        }
+    }
 
     let builder = authenticate(client, http_method, endpoint, method, credentials);
 
@@ -46,7 +46,7 @@ pub fn request_with_credentials<T>(
     };
     try!(res.read_to_string(&mut body));
 
-    debug!("received response {:?} {:?} {:?}", res.status, res.headers, body);
+    println!("received response {:?} {:?} {:?}", res.status, res.headers, body);
 
     let res: Response<T> = try!(serde_json::from_str(&body));
     match res {
@@ -61,44 +61,35 @@ pub fn request_with_credentials<T>(
 
 fn authenticate<'a>(
     client: &'a Client, http_method: HttpMethod, endpoint: Endpoint, method: Method,
-    credentials: &Credentials) -> RequestBuilder<'a> {
+    credentials: Option<&Credentials>) -> RequestBuilder<'a> {
 
-    // Setup url
     let url = format!("{}?method={}", endpoint.to_string(), method.to_string());
     let mut url = Url::parse(&url).unwrap();
-    {
-        // Appends credentials
-        let mut query_pairs = url.query_pairs_mut();
-        if let Some(auth_token) = credentials.auth_token.as_ref() {
-          query_pairs.append_pair("auth_token", auth_token);
-        }
-        if let Some(partner_id) = credentials.partner_id.as_ref() {
-          query_pairs.append_pair("partner_id", partner_id);
-        }
-        if let Some(user_id) = credentials.user_id.as_ref() {
-          query_pairs.append_pair("user_id", user_id);
-        }
+    if let Some(credentials) = credentials {
+        url.query_pairs_mut().extend_pairs(credentials.query_pairs());
     }
 
-    // println!("URL: {:?}", url);
     client.request(http_method, url)
 }
 
-fn authenticate_body(body: Option<Value>, credentials: &Credentials) -> Value {
+fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> Value {
 
     let mut body = match body {
         Some(body) => body,
         None => serde_json::to_value("{}"),
     };
 
-    if let Some(body_map) = body.as_object_mut() {
-        if let Some(sync_time) = credentials.sync_time.as_ref() {
-            body_map.insert("syncTime".to_owned(), Value::String(sync_time.clone()));
-        }
-        if let Some(user_auth_token) = credentials.user_auth_token.as_ref() {
-            body_map.insert("userAuthToken".to_owned(), Value::String(user_auth_token.clone()));
+    if let Some(credentials) = credentials {
+        if let Some(body_map) = body.as_object_mut() {
+            if let Some(sync_time) = credentials.sync_time() {
+                body_map.insert("syncTime".to_owned(), Value::U64(sync_time.clone()));
+            }
+            if let Some(user_auth_token) = credentials.user_auth_token() {
+                body_map.insert("userAuthToken".to_owned(), Value::String(user_auth_token.to_owned()));
+            }
         }
     }
 
+    println!("BODY: {}", body);
     body
 }
