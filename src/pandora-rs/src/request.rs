@@ -39,7 +39,7 @@ pub fn request<T>(
     };
     try!(res.read_to_string(&mut body));
 
-    debug!("received response {:?} {:?} {:?}", res.status, res.headers, body);
+    println!("== Received response ==\nStatus: {:?}\nHeaders: {:?}\nBody: {:?}", res.status, res.headers, body);
 
     let res: Response<T> = try!(serde_json::from_str(&body));
     match res {
@@ -58,25 +58,29 @@ fn authenticate<'a>(
     client: &'a Client, http_method: HttpMethod, endpoint: Endpoint, method: Method,
     credentials: Option<&Credentials>) -> RequestBuilder<'a> {
 
+    use std::collections::BTreeMap;
+
     let url = format!("{}?method={}", endpoint.to_string(), method.to_string());
     let mut url = Url::parse(&url).unwrap();
 
     if let Some(credentials) = credentials {
-        let mut query_pairs = url.query_pairs_mut();
+        let mut query_pairs: BTreeMap<&str, &str> = BTreeMap::new();
         if let Some(partner_auth_token) = credentials.partner_auth_token() {
-            query_pairs.append_pair("auth_token", partner_auth_token);
+            query_pairs.insert("auth_token", partner_auth_token);
         }
         if let Some(user_auth_token) = credentials.user_auth_token() {
-            query_pairs.append_pair("auth_token", user_auth_token);
+            query_pairs.insert("auth_token", user_auth_token);
         }
         if let Some(partner_id) = credentials.partner_id() {
-            query_pairs.append_pair("partner_id", partner_id);
+            query_pairs.insert("partner_id", partner_id);
         }
         if let Some(user_id) = credentials.user_id() {
-            query_pairs.append_pair("user_id", user_id);
+            query_pairs.insert("user_id", user_id);
         }
+        url.query_pairs_mut().extend_pairs(query_pairs);
     }
 
+    println!("== URL ==\n{:?}", url);
     client.request(http_method, url)
 }
 
@@ -89,8 +93,9 @@ fn authenticate<'a>(
 fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> Value {
     let mut body = match body {
         Some(body) => body,
-        None => serde_json::to_value("{}"),
+        None => serde_json::to_value(serde_json::value::Map::<String, Value>::new()),
     };
+
 
     if let Some(credentials) = credentials {
         if let Some(obj) = body.as_object_mut() {
@@ -106,5 +111,6 @@ fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> 
         }
     }
 
+    println!("== Body created ==\n{:?}", body);
     body
 }

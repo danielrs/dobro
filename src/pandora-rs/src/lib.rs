@@ -21,8 +21,20 @@ pub mod error;
 pub mod method;
 pub mod request;
 mod response;
+pub mod stations;
 
 pub use auth::Credentials;
+pub use method::Method;
+pub use stations::Stations;
+
+use error::Result;
+use request::request;
+
+// External imports.
+use hyper::client::Client;
+use hyper::method::Method as HttpMethod;
+use serde::Deserialize;
+use serde_json::value::Value;
 
 // pub use method::*;
 // pub use request::*;
@@ -49,6 +61,7 @@ pub const DEFAULT_ENDPOINT : Endpoint<'static> = ENDPOINTS[0];
 /// Main interface for interacting with the Pandora API
 #[derive(Debug)]
 pub struct Pandora<'a> {
+    client: Client,
     endpoint: Endpoint<'a>,
     credentials: Credentials,
 }
@@ -57,8 +70,40 @@ impl<'a> Pandora<'a> {
     /// Creates a new Pandora instance from the given credentials.
     pub fn with_credentials(credentials: Credentials) -> Self {
         Pandora {
+            client: Client::new(),
             endpoint: DEFAULT_ENDPOINT,
             credentials: credentials,
         }
+    }
+
+    /// Returns a handler to Stations.
+    pub fn stations(&self) -> Stations {
+        Stations::new(self)
+    }
+
+    /// Proxy method for GET requests.
+    pub fn get<T>(&self, method: Method, body: Option<Value>) -> Result<T>
+    where T: Deserialize {
+        request(
+            &self.client,
+            HttpMethod::Get,
+            self.endpoint,
+            method,
+            body,
+            Some(&self.credentials),
+        )
+    }
+
+    /// Proxy method for POST requests.
+    pub fn post<T>(&self, method: Method, body: Option<Value>) -> Result<T>
+    where T: Deserialize {
+        request(
+            &self.client,
+            HttpMethod::Post,
+            self.endpoint,
+            method,
+            body,
+            Some(&self.credentials),
+        )
     }
 }

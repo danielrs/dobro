@@ -8,7 +8,10 @@ fn main() {
     // a valid response.
     let res = Pandora::new("john.doe@gmail.com", "johndoe");
     match res {
-        Ok(res) => println!("Ok: {:?}", res),
+        Ok(res) => {
+            let stations = res.stations();
+            println!("{:?}", stations.list());
+        },
         Err(e) => println!("Err: {:?}", e),
     }
 }
