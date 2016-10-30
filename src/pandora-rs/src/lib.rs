@@ -19,16 +19,18 @@ pub mod auth;
 pub mod crypt;
 pub mod error;
 pub mod method;
+pub mod music;
 pub mod request;
 mod response;
 pub mod stations;
 
 pub use auth::Credentials;
-pub use method::Method;
-pub use stations::Stations;
 
 use error::Result;
+use method::Method;
+use music::Music;
 use request::request;
+use stations::Stations;
 
 // External imports.
 use hyper::client::Client;
@@ -74,6 +76,12 @@ impl<'a> Pandora<'a> {
             endpoint: DEFAULT_ENDPOINT,
             credentials: credentials,
         }
+    }
+
+    /// Returns [Music](struct.Music.html) struct for different music related
+    /// methods.
+    pub fn music(&self) -> Music {
+        Music::new(self)
     }
 
     /// Returns a handler to Stations.
