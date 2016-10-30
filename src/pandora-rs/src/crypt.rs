@@ -58,7 +58,7 @@ pub fn decrypt(key: &str, hex_input: &str) -> OsString {
 }
 
 /// Divides the input in blocks and ciphers it using the given closure.
-fn cipher_with<F>(key: &[u8], input: &[u8], mut func: F) -> Vec<u8>
+fn cipher_with<F>(key: &[u8], input: &[u8], func: F) -> Vec<u8>
     where F: Fn(&Blowfish, &[u8], &mut [u8]) {
 
     let blowfish = Blowfish::new(key);

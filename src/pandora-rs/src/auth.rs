@@ -1,16 +1,20 @@
-use super::Endpoint;
+//! Most of the structs in this module are only used for generating
+//! the required [Credentials](struct.Credentials.html) needed to
+//! start using [Pandora](../struct.Pandora.html).
+
+use super::{DEFAULT_ENDPOINT, Pandora};
 use crypt::{decrypt};
 use error::Result;
 use method::Method;
-use request::{request, request_with_credentials};
+use request::request;
 
 use hyper::client::Client;
 use hyper::method::Method as HttpMethod;
 
 use serde_json;
-use serde_json::value::Value;
 
-/// The authentication details.
+/// Authentication details used in each
+/// request.
 #[derive(Debug)]
 pub struct Credentials {
     // Encryption / Decryption information.
@@ -26,6 +30,7 @@ pub struct Credentials {
 }
 
 impl Credentials {
+    /// Creates a new credentials from a Partner.
     pub fn new(partner: &Partner) -> Self {
         Credentials {
             encrypt_key: partner.encrypt_password.clone(),
@@ -42,16 +47,14 @@ impl Credentials {
 
     /// Consumes PartnerLogin and sets the required information
     /// in the credentials.
-    pub fn set_partner_login(&mut self, partner_login: &PartnerLogin) {
-        use std::ffi::OsStr;
+    pub fn set_partner_login(&mut self, partner_login: PartnerLogin) {
+        use std::str;
         use std::os::unix::ffi::OsStrExt;
 
         let sync_time_bytes: Vec<u8> = decrypt(self.decrypt_key(), &partner_login.sync_time)
             .as_os_str().as_bytes().iter().skip(4).cloned().collect();
-        let sync_time_string = OsStr::from_bytes(&sync_time_bytes)
-            .to_owned().into_string().unwrap_or("0".to_owned());
-        let sync_time = sync_time_string.parse::<u64>().unwrap_or(0);
-
+        let sync_time_str = str::from_utf8(&sync_time_bytes).unwrap_or("0");
+        let sync_time = sync_time_str.parse::<u64>().unwrap_or(0);
 
         self.partner_id = Some(partner_login.partner_id.clone());
         self.partner_auth_token = Some(partner_login.partner_auth_token.clone());
@@ -60,45 +63,38 @@ impl Credentials {
 
     /// Consumes UserLogin and sets the required information
     /// in the credentials.
-    pub fn set_user_login(&mut self, user_login: &UserLogin) {
+    pub fn set_user_login(&mut self, user_login: UserLogin) {
         self.user_id = user_login.user_id.clone();
         self.user_auth_token = Some(user_login.user_auth_token.clone());
     }
 
-    /// Returns the encryption key.
+    /// Returns a reference to the encryption key.
     pub fn encrypt_key(&self) -> &str {
         &self.encrypt_key
     }
 
-    /// Returns the decryption key.
+    /// Returns a reference to the decryption key.
     pub fn decrypt_key(&self) -> &str {
         &self.decrypt_key
     }
 
-
-    /// Returns a Vector of query pairs from the credentials.
-    pub fn query_pairs<'a>(&'a self) -> Vec<(&'a str, &'a str)> {
-        let mut pairs = Vec::new();
-
-        if let Some(ref partner_auth_token) = self.partner_auth_token {
-            pairs.push(("auth_token", partner_auth_token.as_str()));
+    /// Returns a reference to the partner id.
+    pub fn partner_id<'a>(&'a self) -> Option<&'a str> {
+        match self.partner_id {
+            Some(ref partner_id) => Some(partner_id.as_str()),
+            None => None
         }
-
-        if let Some(ref user_auth_token) = self.user_auth_token {
-            pairs.push(("auth_token", user_auth_token.as_str()));
-        }
-
-        if let Some(ref partner_id) = self.partner_id {
-            pairs.push(("partner_id", partner_id.as_str()));
-        }
-
-        if let Some(ref user_id) = self.user_id {
-            pairs.push(("user_id", user_id.as_str()));
-        }
-
-        pairs
     }
 
+    /// Returns a reference to the partner authorization token.
+    pub fn partner_auth_token<'a>(&'a self) -> Option<&'a str> {
+        match self.partner_auth_token {
+            Some(ref partner_auth_token) => Some(partner_auth_token.as_str()),
+            None => None
+        }
+    }
+
+    /// Returns a reference to the synchronization time.
     pub fn sync_time<'a>(&'a self) -> Option<&'a u64> {
         match self.sync_time {
             Some(ref sync_time) => Some(&sync_time),
@@ -106,6 +102,15 @@ impl Credentials {
         }
     }
 
+    /// Returns a reference to the user id.
+    pub fn user_id<'a>(&'a self) -> Option<&'a str> {
+        match self.user_id {
+            Some(ref user_id) => Some(user_id.as_str()),
+            None => None
+        }
+    }
+
+    /// Returns a reference to the user authorization token.
     pub fn user_auth_token<'a>(&'a self) -> Option<&'a str> {
         match self.user_auth_token {
             Some(ref user_auth_token) => Some(user_auth_token.as_str()),
@@ -173,24 +178,19 @@ pub struct UserLoginRequest {
     login_type: String,
     username: String,
     password: String,
-    #[serde(rename="partnerAuthToken")]
-    partner_auth_token: String,
-    #[serde(rename="syncTime")]
-    sync_time: String,
 }
 
 impl UserLoginRequest {
-    pub fn new(username: String, password: String, partner: &PartnerLogin) -> Self {
+    pub fn new(username: String, password: String) -> Self {
         UserLoginRequest {
             login_type: "user".to_owned(),
             username: username,
             password: password,
-            partner_auth_token: partner.partner_auth_token.clone(),
-            sync_time: partner.sync_time.clone(),
         }
     }
 }
 
+/// User login.
 #[derive(Debug, Deserialize)]
 pub struct UserLogin {
     #[serde(rename="userId")]
@@ -199,33 +199,38 @@ pub struct UserLogin {
     pub user_auth_token: String,
 }
 
-pub fn login(endpoint: Endpoint, username: &str, password: &str) -> Result<Credentials> {
+impl<'a> Pandora<'a> {
+    /// Tries to log in into the default endpoint to obtain credentials,
+    /// and returns a new Pandora struct.
+    pub fn new(username: &str, password: &str) -> Result<Pandora<'a>> {
+        let client = Client::new();
+        let partner = Partner::default();
+        let mut credentials = Credentials::new(&partner);
 
-    let client = Client::new();
-    let partner = Partner::default();
-    let mut credentials = Credentials::new(&partner);
+        let partner_login : PartnerLogin = try!(request(
+            &client,
+            HttpMethod::Post,
+            DEFAULT_ENDPOINT,
+            Method::AuthPartnerLogin,
+            Some(serde_json::to_value(&partner)),
+            None,
+        ));
+        credentials.set_partner_login(partner_login);
 
-    let partner_login : PartnerLogin = try!(request(
-        &client,
-        HttpMethod::Post,
-        endpoint,
-        Method::AuthPartnerLogin,
-        Some(serde_json::to_value(&partner)),
-    ));
-    credentials.set_partner_login(&partner_login);
+        let user_login_body = serde_json::to_value(
+            &UserLoginRequest::new(username.to_owned(), password.to_owned())
+        );
+        let user_login : UserLogin = try!(request(
+            &client,
+            HttpMethod::Post,
+            DEFAULT_ENDPOINT,
+            Method::AuthUserLogin,
+            Some(user_login_body),
+            Some(&credentials),
+        ));
+        credentials.set_user_login(user_login);
 
-    let user_login_body = serde_json::to_value(
-        &UserLoginRequest::new(username.to_owned(), password.to_owned(), &partner_login)
-    );
-    let user_login : UserLogin = try!(request_with_credentials(
-        &client,
-        HttpMethod::Post,
-        endpoint,
-        Method::AuthUserLogin,
-        Some(user_login_body),
-        Some(&credentials),
-    ));
-    credentials.set_user_login(&user_login);
-
-    Ok(credentials)
+        // At this point we can assume credentials are correct.
+        Ok(Pandora::with_credentials(credentials))
+    }
 }

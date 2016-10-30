@@ -15,20 +15,20 @@ extern crate serde_json;
 
 extern crate url;
 
-mod auth;
+pub mod auth;
 pub mod crypt;
-mod error;
-mod method;
-mod request;
+pub mod error;
+pub mod method;
+pub mod request;
 mod response;
 
-pub use auth::{Credentials, login};
+pub use auth::Credentials;
 
 // pub use method::*;
 // pub use request::*;
 
 /// Endpoint of the Pandora API
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Endpoint<'a>(&'a str);
 
 impl<'a> ToString for Endpoint<'a> {
@@ -38,7 +38,7 @@ impl<'a> ToString for Endpoint<'a> {
     }
 }
 
-const ENDPOINTS : [Endpoint<'static>; 4] = [
+pub const ENDPOINTS : [Endpoint<'static>; 4] = [
     Endpoint("http://tuner.pandora.com/services/json/"),
     Endpoint("https://tuner.pandora.com/services/json/"),
     Endpoint("http://internal-tuner.pandora.com/services/json/"),
@@ -47,21 +47,17 @@ const ENDPOINTS : [Endpoint<'static>; 4] = [
 pub const DEFAULT_ENDPOINT : Endpoint<'static> = ENDPOINTS[0];
 
 /// Main interface for interacting with the Pandora API
+#[derive(Debug)]
 pub struct Pandora<'a> {
     endpoint: Endpoint<'a>,
     credentials: Credentials,
 }
 
 impl<'a> Pandora<'a> {
-    /// Creates a new Pandora instance.
-    pub fn new(credentials: Credentials) -> Self {
-        Pandora::new_with_endpoint(DEFAULT_ENDPOINT, credentials)
-    }
-
-    /// Creates a new Pandora instance with the given endponit.
-    pub fn new_with_endpoint(endpoint: Endpoint<'a>, credentials: Credentials) -> Self {
+    /// Creates a new Pandora instance from the given credentials.
+    pub fn with_credentials(credentials: Credentials) -> Self {
         Pandora {
-            endpoint: endpoint,
+            endpoint: DEFAULT_ENDPOINT,
             credentials: credentials,
         }
     }

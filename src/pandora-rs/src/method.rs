@@ -1,3 +1,6 @@
+//! Methods defined by the unofficial Pandora API.
+
+/// The Pandora method.
 #[derive(Debug)]
 pub enum Method {
     TestCheckLicensing,
@@ -34,6 +37,8 @@ impl ToString for Method {
 }
 
 impl Method {
+    /// Returns true if the method needs the request body to be encrypted with Blowfish ECB.
+    /// The [crypt](../crypt/index.html) module takes care of encryption and decryption.
     pub fn is_encrypted(&self) -> bool {
         match *self {
             Method::TestCheckLicensing | Method::AuthPartnerLogin => false,
