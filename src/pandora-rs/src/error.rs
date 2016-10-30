@@ -5,7 +5,6 @@ use std::io::Error as IoError;
 
 use hyper::error::Error as HttpError;
 
-use serde::de;
 use serde_json::error::Error as CodecError;
 
 pub type Result<T> = ::std::result::Result<T, Error>;

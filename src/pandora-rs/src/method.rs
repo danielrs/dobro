@@ -8,6 +8,8 @@ pub enum Method {
     AuthPartnerLogin,
     AuthUserLogin,
 
+    MusicSearch,
+
     UserGetStationList,
 
     StationCreateStation,
@@ -24,6 +26,8 @@ impl ToString for Method {
 
             Method::AuthPartnerLogin     => "auth.partnerLogin".to_owned(),
             Method::AuthUserLogin        => "auth.userLogin".to_owned(),
+
+            Method::MusicSearch          => "music.search".to_owned(),
 
             Method::UserGetStationList   => "user.getStationList".to_owned(),
 

@@ -58,12 +58,11 @@ fn authenticate<'a>(
     client: &'a Client, http_method: HttpMethod, endpoint: Endpoint, method: Method,
     credentials: Option<&Credentials>) -> RequestBuilder<'a> {
 
-    use std::collections::BTreeMap;
-
     let url = format!("{}?method={}", endpoint.to_string(), method.to_string());
     let mut url = Url::parse(&url).unwrap();
 
     if let Some(credentials) = credentials {
+        use std::collections::BTreeMap;
         let mut query_pairs: BTreeMap<&str, &str> = BTreeMap::new();
         if let Some(partner_auth_token) = credentials.partner_auth_token() {
             query_pairs.insert("auth_token", partner_auth_token);
@@ -93,9 +92,8 @@ fn authenticate<'a>(
 fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> Value {
     let mut body = match body {
         Some(body) => body,
-        None => serde_json::to_value(serde_json::value::Map::<String, Value>::new()),
+        None => serde_json::to_value(serde_json::Map::<String, Value>::new()),
     };
-
 
     if let Some(credentials) = credentials {
         if let Some(obj) = body.as_object_mut() {
