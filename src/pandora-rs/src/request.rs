@@ -39,7 +39,7 @@ pub fn request<T>(
     };
     try!(res.read_to_string(&mut body));
 
-    println!("== Received response ==\nStatus: {:?}\nHeaders: {:?}\nBody: {:?}", res.status, res.headers, body);
+    debug!("== Received response ==\nStatus: {:?}\nHeaders: {:?}\nBody: {:?}", res.status, res.headers, body);
 
     let res: Response<T> = try!(serde_json::from_str(&body));
     match res {
@@ -79,7 +79,7 @@ fn authenticate<'a>(
         url.query_pairs_mut().extend_pairs(query_pairs);
     }
 
-    println!("== URL ==\n{:?}", url);
+    debug!("== URL ==\n{:?}", url);
     client.request(http_method, url)
 }
 
@@ -109,6 +109,6 @@ fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> 
         }
     }
 
-    println!("== Body created ==\n{:?}", body);
+    debug!("== Body created ==\n{:?}", body);
     body
 }

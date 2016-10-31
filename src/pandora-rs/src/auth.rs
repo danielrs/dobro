@@ -171,25 +171,6 @@ pub struct PartnerLogin {
     pub sync_time: String,
 }
 
-/// User login information.
-#[derive(Serialize)]
-pub struct UserLoginRequest {
-    #[serde(rename="loginType")]
-    login_type: String,
-    username: String,
-    password: String,
-}
-
-impl UserLoginRequest {
-    pub fn new(username: String, password: String) -> Self {
-        UserLoginRequest {
-            login_type: "user".to_owned(),
-            username: username,
-            password: password,
-        }
-    }
-}
-
 /// User login.
 #[derive(Debug, Deserialize)]
 pub struct UserLogin {
@@ -232,5 +213,28 @@ impl<'a> Pandora<'a> {
 
         // At this point we can assume credentials are correct.
         Ok(Pandora::with_credentials(credentials))
+    }
+}
+
+////////////////////
+// Request structs
+////////////////////
+
+/// User login information.
+#[derive(Serialize)]
+struct UserLoginRequest {
+    #[serde(rename="loginType")]
+    login_type: String,
+    username: String,
+    password: String,
+}
+
+impl UserLoginRequest {
+    pub fn new(username: String, password: String) -> Self {
+        UserLoginRequest {
+            login_type: "user".to_owned(),
+            username: username,
+            password: password,
+        }
     }
 }

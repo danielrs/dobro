@@ -17,10 +17,12 @@ pub enum Method {
     StationRenameStation,
     StationDeleteStation,
 
+    StationGetStation,
     StationAddMusic,
     StationDeleteMusic,
 
     StationGetPlaylist,
+    StationAddFeedback
 }
 
 impl ToString for Method {
@@ -34,16 +36,18 @@ impl ToString for Method {
             Method::MusicSearch          => "music.search".to_owned(),
 
             Method::UserGetStationList   => "user.getStationList".to_owned(),
-            Method::UserGetStationListChecksum   => "user.getStationListChecksum".to_owned(),
+            Method::UserGetStationListChecksum => "user.getStationListChecksum".to_owned(),
 
             Method::StationCreateStation => "station.createStation".to_owned(),
             Method::StationRenameStation => "station.renameStation".to_owned(),
             Method::StationDeleteStation => "station.deleteStation".to_owned(),
 
+            Method::StationGetStation    => "station.getStation".to_owned(),
             Method::StationAddMusic      => "station.addMusic".to_owned(),
             Method::StationDeleteMusic   => "station.deleteMusic".to_owned(),
 
             Method::StationGetPlaylist   => "station.getPlaylist".to_owned(),
+            Method::StationAddFeedback   => "station.addFeedback".to_owned(),
         }
     }
 }

@@ -20,6 +20,7 @@ pub mod crypt;
 pub mod error;
 pub mod method;
 pub mod music;
+pub mod playlist;
 pub mod request;
 mod response;
 pub mod stations;

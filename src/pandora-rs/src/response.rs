@@ -1,5 +1,6 @@
 /// Struct for deserializing Pandora API responses.
 
+/// Enum for checking Pandora API responses of success (ok) or error (fail).
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Stat {
     #[serde(rename="ok")]
@@ -8,6 +9,7 @@ pub enum Stat {
     Fail,
 }
 
+/// Type for deserializing a Pandora API reponse.
 #[derive(Debug, Deserialize)]
 pub struct Response<T> {
     pub stat: Stat,

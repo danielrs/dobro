@@ -7,8 +7,15 @@ fn main() {
     let res = Pandora::new("john.doe@gmail.com", "johndoe"); // <- real login here
     match res {
         Ok(pandora) => {
-            for station in pandora.stations().list().unwrap() {
-                println!("{:?}", station);
+            let station_handler = pandora.stations();
+            for station in station_handler.list().unwrap() {
+                println!("== Tracks for \"{}\"", station.station_name);
+                let playlist = station_handler.playlist(&station);
+                let tracklist = playlist.list().unwrap();
+
+                for track in tracklist {
+                    println!("{:?}", track);
+                }
             }
         },
         Err(e) => println!("Err: {:?}", e),
