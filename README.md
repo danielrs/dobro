@@ -12,7 +12,7 @@ This an app that I'm building during my free time. It will consist of the follow
 
 #### API Interaction
 Most of the work for this module is already done. It interacts with the API in a very rusty way using [hyper][hyper]; all
-the requests/responses are serialized/deserialized using [serde][serde] and [serde_json][serde_json].
+the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json].
 
 #### Audio playback
 Not done, not started yet. The audio tools for rust is lacking a little bit as of November, 2016. I have been thinking about
