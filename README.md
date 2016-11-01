@@ -16,7 +16,9 @@ the requests/responses are serializing/deserializing is done using [serde][serde
 
 #### Audio playback
 Not done, not started yet. The audio tools for rust is lacking a little bit as of November, 2016. I have been thinking about
-using tools such as [rust-media][rust-media]. Or a combination of something like [cpal][cpal] and [ffmpeg][ffmpeg].
+using tools such as [rust-media][rust-media]. Or a combination of something like [cpal][cpal] and [ffmpeg][ffmpeg] to keep
+the size down. I haven't done any audio-related programming in forever, so getting this done may take a lot of reading
+and time.
 
 #### TUI
 After audio playback.
