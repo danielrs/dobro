@@ -1,0 +1,82 @@
+//! This module contains the ffi bindings for libao
+extern crate libc;
+#[macro_use]
+extern crate bitflags;
+
+use std::ptr;
+use std::f64::consts::{PI};
+use libc::{c_int, c_char};
+
+bitflags! {
+    flags AoByteFormat: c_int {
+        const AO_FMT_LITTLE = 1,
+        const AO_FMT_BIG = 2,
+        const AO_FMT_NATIVE = 4,
+    }
+}
+
+// Opaque structures for c inter-operation.
+
+/// Opaque structure for libao's ao_device.
+#[derive(Debug)]
+enum AoDevice {}
+
+/// Structure for libao's ao_sample_format.
+#[repr(C)]
+struct AoSampleFormat {
+    pub bits: c_int,
+    pub rate: c_int,
+    pub channels: c_int,
+    pub byte_format: c_int,
+    matrix: *mut c_char,
+}
+
+impl Default for AoSampleFormat {
+    fn default() -> Self {
+        AoSampleFormat {
+            bits: 16,
+            rate: 44100,
+            channels: 2,
+            byte_format: AO_FMT_LITTLE.bits,
+            matrix: ptr::null_mut(),
+        }
+    }
+}
+
+/// Structure for libao's ao_option.
+#[repr(C)]
+struct AoOption {
+    key: *mut c_char,
+    value: *mut c_char,
+    next: *mut AoOption,
+}
+
+#[link(name="ao")]
+extern {
+    fn ao_initialize();
+    fn ao_default_driver_id() -> c_int;
+    fn ao_open_live(driver_id: c_int, format: *mut AoSampleFormat, options: *mut AoOption) -> *mut AoDevice;
+}
+
+fn main() {
+    let driver = unsafe {
+        ao_initialize();
+        ao_default_driver_id()
+    };
+
+    let freq = 440.0;
+    let mut format = AoSampleFormat::default();
+
+    let device = unsafe { ao_open_live(driver, &mut format, ptr::null_mut()) };
+
+    // Creates buffer.
+    let buff_size = (format.bits / 8 * format.channels * format.rate) as usize;
+    let mut buffer: Vec<u8> = Vec::with_capacity(buff_size);
+    for (i, chunk) in buffer.chunks_mut(4).enumerate() {
+        let sample = 0.75 * 32768.0 * (2.0 * PI * freq * (i as f64) / (format.rate as f64));
+        buffer[0] = sample & 0xff;
+        buffer[2] = sample & 0xff;
+        buffer[1] = (sample >> 8) & 0xff;
+        buffer[3] = (sample >> 8) & 0xff;
+    }
+}

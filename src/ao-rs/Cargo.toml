@@ -1,0 +1,12 @@
+[package]
+name = "ao"
+version = "0.1.0"
+authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
+
+[dependencies]
+libc = "0.2"
+bitflags = "0.7.0"
+
+[[bin]]
+name = "main"
+path = "src/ffi.rs"
