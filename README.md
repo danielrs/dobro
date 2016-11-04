@@ -15,10 +15,8 @@ Most of the work for this module is already done. It interacts with the API in a
 the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json].
 
 #### Audio playback
-Not done, not started yet. The audio tools for rust is lacking a little bit as of November, 2016. I have been thinking about
-using tools such as [rust-media][rust-media]. Or a combination of something like [cpal][cpal] and [ffmpeg][ffmpeg] to keep
-the size down. I haven't done any audio-related programming in forever, so getting this done might take a lot of reading
-and time.
+For output of PCM data I decided to make ffi bindings for libao. For decoding of files ffmpeg seems to be the de-facto
+standard for exotic codecs in Linux.
 
 #### TUI
 After audio playback.
