@@ -15,8 +15,8 @@ Most of the work for this module is already done. It interacts with the API in a
 the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json].
 
 #### Audio playback
-For output of PCM data I decided to make ffi bindings for libao. For decoding of files ffmpeg seems to be the de-facto
-standard for exotic codecs in Linux.
+For decoding audio files from pandora I decided to use [ffmpeg][ffmpeg]. For playing the decoded PCM data I'll use
+[libao][libao] with ffi bindings.
 
 #### TUI
 After audio playback.
@@ -31,6 +31,5 @@ The pandora-rs module interacts with the API found [here](https://6xq.net/pandor
 [serde]: https://github.com/serde-rs/serde
 [serde_json]: https://github.com/serde-rs/json
 
-[rust-media]: https://github.com/pcwalton/rust-media
-[cpal]: https://github.com/tomaka/cpal
 [ffmpeg]: https://www.ffmpeg.org/
+[libao]: https://www.xiph.org/ao/
