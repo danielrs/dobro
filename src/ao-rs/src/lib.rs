@@ -5,17 +5,19 @@ mod ffi;
 use std::ffi::CString;
 use std::ptr;
 
-use libc::{c_int, c_char};
+use libc::{c_int};
 
 /// Opaque struct for Ao handling. Make sure only one instance of this
 /// type is created.
 pub struct Ao;
 impl Ao {
+    /// Initializes libao.
     pub fn new() -> Self {
         unsafe { ffi::ao_initialize(); }
         Ao
     }
 
+    /// Reloads libao.
     pub fn reload(&mut self) {
         unsafe {
             ffi::ao_shutdown();
@@ -46,7 +48,7 @@ impl Driver {
     /// Tries to find a driver with the given name.
     ///
     /// # Panics
-    /// If the given name contains 0 bytes.
+    /// If the given name contains inner zero bytes.
     pub fn with_name(short_name: &str) -> Option<Self> {
         let short_name = CString::new(short_name).unwrap();
         let driver_id = unsafe { ffi::ao_driver_id(short_name.as_ptr()) };
@@ -68,8 +70,12 @@ pub struct Device {
 impl Device {
     /// Creates a new device using the given driver, format, and settings.
     pub fn new(driver: &Driver, format: &Format, settings: Option<&Settings>) -> Option<Self> {
+        let options = match settings {
+            Some(settings) => settings.as_ao_option(),
+            None => ptr::null(),
+        };
         let ao_device = unsafe {
-            ffi::ao_open_live(driver.driver_id(), &format.to_ao_format(), ptr::null())
+            ffi::ao_open_live(driver.driver_id(), &format.to_ao_format(), options)
         };
 
         if ao_device.is_null() {
@@ -98,6 +104,46 @@ impl Drop for Device {
     }
 }
 
+/// Ao settings.
+pub struct Settings {
+    options: *mut ffi::AoOption,
+}
+
+impl Settings {
+    /// Creates empty settings.
+    pub fn new() -> Self {
+        Settings {
+            options: ptr::null_mut(),
+        }
+    }
+
+    /// Appends a new setting to the list.
+    ///
+    /// # Panics
+    /// If the passed string or value contain inner zero bytes.
+    pub fn append(&mut self, key: &str, value: &str) {
+        let key = CString::new(key).unwrap();
+        let value = CString::new(value).unwrap();
+        unsafe {
+            // libao will create its own copies of the key and value.
+            ffi::ao_append_option(&mut self.options, key.as_ptr(), value.as_ptr());
+        }
+    }
+
+    /// Returns the contained AoOption pointer.
+    pub fn as_ao_option(&self) -> *const ffi::AoOption {
+        self.options
+    }
+}
+
+impl Drop for Settings {
+    fn drop(&mut self) {
+        unsafe {
+            ffi::ao_free_options(self.options);
+        }
+    }
+}
+
 /// Ao sample format.
 pub struct Format {
     pub bits: u32,
@@ -114,7 +160,7 @@ impl Format {
         Format::default()
     }
 
-    /// Returns reference as AoFormat.
+    /// Returns a new AoFormat without consuming self.
     pub fn to_ao_format(&self) -> ffi::AoFormat {
         ffi::AoFormat {
             bits: self.bits.clone() as c_int,
@@ -146,5 +192,3 @@ pub enum ByteFormat {
     Native = 4,
 }
 
-/// Ao settings.
-pub struct Settings;

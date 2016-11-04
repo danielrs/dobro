@@ -1,11 +1,8 @@
-//! This module contains the ffi bindings for libao
-use libc::{c_int, c_char};
+//! This module contains the ffi bindings for libao. Check the
+//! [official docs](https://www.xiph.org/ao/doc/) for more
+//! information.
 
-const AO_FMT_LITTLE: c_int = 1;
-const AO_FMT_BIG: c_int = 2;
-const AO_FMT_NATIVE: c_int = 4;
-
-// Opaque structures for c inter-operation.
+use libc::{c_int, c_char, uint32_t};
 
 /// Opaque structure for libao's ao_device.
 #[derive(Debug)]
@@ -34,10 +31,14 @@ extern {
     static mut errno: c_int;
 
     pub fn ao_initialize();
+    pub fn ao_shutdown();
+
     pub fn ao_driver_id(short_name: *const c_char) -> c_int;
     pub fn ao_default_driver_id() -> c_int;
     pub fn ao_open_live(driver_id: c_int, format: *const AoFormat, options: *const AoOption) -> *mut AoDevice;
-    pub fn ao_play(ao_device: *const AoDevice, output_samples: *const c_char, num_bytes: u32) -> c_int;
-    pub fn ao_close(ao_device: *const AoDevice) -> c_int;
-    pub fn ao_shutdown();
+    pub fn ao_play(ao_device: *const AoDevice, output_samples: *const c_char, num_bytes: uint32_t) -> c_int;
+    pub fn ao_close(ao_device: *mut AoDevice) -> c_int;
+
+    pub fn ao_append_option(options: *mut *mut AoOption, key: *const c_char, value: *const c_char);
+    pub fn ao_free_options(options: *mut AoOption);
 }
