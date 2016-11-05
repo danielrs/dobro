@@ -1,0 +1,3 @@
+#[link(name="avfilter")]
+extern {
+}

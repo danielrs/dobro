@@ -1,0 +1,3 @@
+#[link(name="avcodec")]
+extern {
+}

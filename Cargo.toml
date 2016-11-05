@@ -7,3 +7,9 @@ authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies.pandora]
 path = "src/pandora-rs"
+
+[dependencies.ao]
+path = "src/ao-rs"
+
+[dependencies.earwax]
+path = "src/earwax"
