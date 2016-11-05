@@ -1,3 +1,0 @@
-#[link(name="avfilter")]
-extern {
-}
