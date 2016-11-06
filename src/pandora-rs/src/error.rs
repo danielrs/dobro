@@ -7,6 +7,7 @@ use hyper::error::Error as HttpError;
 
 use serde_json::error::Error as CodecError;
 
+/// Specialized result.
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 /// Composite error type for the library.

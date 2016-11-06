@@ -9,12 +9,14 @@ fn main() {
         Ok(pandora) => {
             let station_handler = pandora.stations();
             for station in station_handler.list().unwrap() {
-                println!("== Tracks for \"{}\"", station.station_name);
-                let playlist = station_handler.playlist(&station);
-                let tracklist = playlist.list().unwrap();
+                if station.station_name == "Magical".to_owned() {
+                    println!("== Tracks for \"{}\"", station.station_name);
+                    let playlist = station_handler.playlist(&station);
+                    let tracklist = playlist.list().unwrap();
 
-                for track in tracklist {
-                    println!("{:?}", track);
+                    for track in tracklist {
+                        println!("{:?}", track);
+                    }
                 }
             }
         },
