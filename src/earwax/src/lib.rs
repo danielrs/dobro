@@ -36,12 +36,12 @@ impl Earwax {
         }
     }
 
-    pub fn spit<F>(callback: F) where F: FnOnce(&[u8]) {
+    pub fn spit<F>(&mut self, callback: F) where F: Fn(&[i8]) {
         unsafe {
-            let mut data: *mut c_char = ptr::null_mut();
-            let mut len = 0;
-            while ffi::earwax_spit(&mut data, &mut len) >= 0 {
-                println!("Data.");
+            let mut chunk = ffi::EarwaxChunk::new();
+            while ffi::earwax_spit(*self.earwax_context, &mut chunk) > 0 {
+                let slice = std::slice::from_raw_parts(chunk.data, chunk.size);
+                callback(slice);
             }
         }
     }

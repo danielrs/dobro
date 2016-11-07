@@ -1,21 +1,17 @@
 extern crate earwax;
+extern crate ao;
 
 use earwax::Earwax;
-use std::thread;
+use ao::*;
 
 fn main() {
-    let handles: Vec<_> = (0..10).into_iter().map(|i| {
-        thread::spawn(move || {
-            for i in 0..10 {
-                match Earwax::new("track.mp4") {
-                    Ok(_) => println!("DONE"),
-                    Err(_) => unreachable!(),
-                }
-            }
-        })
-    }).collect();
+    let ao = Ao::new();
+    let driver = Driver::new().unwrap();
+    let format = Format::new();
+    let device = Device::new(&driver, &format, None).unwrap();
 
-    for h in handles {
-        h.join().unwrap();
-    }
+    let mut earwax = Earwax::new("./tracks/Pachelbel - Canon in D Major.mp3").unwrap();
+    earwax.spit(|data| {
+        device.play(data);
+    });
 }

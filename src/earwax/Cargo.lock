@@ -2,7 +2,15 @@
 name = "earwax"
 version = "0.1.0"
 dependencies = [
+ "ao 0.1.0",
  "gcc 0.3.38 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.2.17 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ao"
+version = "0.1.0"
+dependencies = [
  "libc 0.2.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
