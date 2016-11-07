@@ -2,20 +2,20 @@ use libc::{c_char, c_int, size_t};
 
 #[derive(Debug)]
 pub enum EarwaxErrorCode {
-    Unknown = 99,
     Io = 100,
     AudioStreamNotFound,
     DecoderNotFound,
     UnableToOpenDecoder,
+    Unknown,
 }
 
 impl EarwaxErrorCode {
     pub fn from_c_int(code: c_int) -> Self {
         match code {
-            0 => EarwaxErrorCode::Io,
-            1 => EarwaxErrorCode::AudioStreamNotFound,
-            2 => EarwaxErrorCode::DecoderNotFound,
-            3 => EarwaxErrorCode::UnableToOpenDecoder,
+            100 => EarwaxErrorCode::Io,
+            101 => EarwaxErrorCode::AudioStreamNotFound,
+            102 => EarwaxErrorCode::DecoderNotFound,
+            103 => EarwaxErrorCode::UnableToOpenDecoder,
             _ => EarwaxErrorCode::Unknown,
         }
     }
