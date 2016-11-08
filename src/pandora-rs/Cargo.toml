@@ -1,6 +1,6 @@
 [package]
 name = "pandora"
-version = "0.1.0"
+version = "0.3.0"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
@@ -10,6 +10,7 @@ rust-crypto = "0.2.36"
 serde = "0.8"
 serde_derive = "0.8"
 serde_json = "0.8"
+serde_codegen = "0.8.16"
 url = "1.2.2"
 
 [[example]]

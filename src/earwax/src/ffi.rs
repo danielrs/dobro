@@ -31,10 +31,39 @@ impl From<c_int> for EarwaxErrorCode {
 pub enum EarwaxContext {}
 
 #[repr(C)]
+pub struct EarwaxRational {
+    pub num: int64_t,
+    pub den: int64_t,
+}
+
+impl EarwaxRational {
+    pub fn new() -> Self {
+        EarwaxRational {
+            num: 1,
+            den: 1,
+        }
+    }
+}
+
+#[repr(C)]
 pub struct EarwaxInfo {
     pub bitrate: c_int,
     pub sample_rate: c_int,
+    pub start_time: int64_t,
     pub duration: int64_t,
+    pub time_base: EarwaxRational,
+}
+
+impl EarwaxInfo {
+    pub fn new() -> Self {
+        EarwaxInfo {
+            bitrate: 0,
+            sample_rate: 0,
+            start_time: 0,
+            duration: 0,
+            time_base: EarwaxRational::new(),
+        }
+    }
 }
 
 #[repr(C)]
@@ -65,6 +94,7 @@ extern {
     pub fn earwax_shutdown();
     pub fn earwax_new(ctx: *mut *mut EarwaxContext, url: *const c_char) -> c_int;
     pub fn earwax_drop(ctx: *mut *mut EarwaxContext);
-    pub fn earwax_get_info(ctx: *mut EarwaxContext, info: *mut EarwaxInfo);
+    pub fn earwax_get_info(ctx: *const EarwaxContext, info: *mut EarwaxInfo);
     pub fn earwax_spit(ctx: *mut EarwaxContext, chunk: *mut EarwaxChunk) -> c_int;
+    pub fn earwax_seek(ctx: *mut EarwaxContext, pts: int64_t) -> c_int;
 }

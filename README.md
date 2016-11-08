@@ -15,8 +15,7 @@ Most of the work for this module is already done. It interacts with the API in a
 the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json].
 
 #### Audio playback
-For decoding audio files from pandora I decided to use [ffmpeg][ffmpeg]. For playing the decoded PCM data I'll use
-[libao][libao] with ffi bindings.
+For **audio decoding** I made a small C library based on [ffmpeg][ffmpeg] called Earwax, specially tailored to be used in Rust (but it can still be used without it). For audio playpack I'm using [libao][libao] with safe ffi bindings.
 
 #### TUI
 After audio playback.

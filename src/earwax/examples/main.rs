@@ -1,7 +1,7 @@
 extern crate earwax;
 extern crate ao;
 
-use earwax::Earwax;
+use earwax::{Earwax, Timestamp};
 use ao::*;
 
 fn main() {
@@ -10,8 +10,8 @@ fn main() {
     let format = Format::new();
     let device = Device::new(&driver, &format, None).unwrap();
 
-    let mut earwax = Earwax::new("./tracks/Pachelbel - Canon in D Major.mp3").unwrap();
-    earwax.spit(|data| {
-        device.play(data);
-    });
+    let mut earwax = Earwax::new("./tracks/Canon.mp3").unwrap();
+    while let Some(chunk) = earwax.spit() {
+        device.play(chunk.data);
+    }
 }

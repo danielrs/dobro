@@ -4,14 +4,12 @@
  * into a stream of PCM data using ffmpeg 3.2
  */
 
-#include <stdio.h>
 #include <pthread.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavdevice/avdevice.h>
 #include <libswresample/swresample.h>
-#include <ao/ao.h>
 
 // --------
 // Useful functions / macros
@@ -50,6 +48,26 @@ enum EarwaxError {
 };
 
 /**
+ * Type of rational numbers.
+ */
+typedef struct {
+    int64_t num;
+    int64_t den;
+} EarwaxRational;
+
+/**
+ * Used for returning audio info
+ * to the user.
+ */
+typedef struct {
+    int bitrate; /**< In bytes, the bitrate of the audio. */
+    int sample_rate; /**< The rate of samples per-second. */
+    int64_t start_time; /**< Start time in time_base units. */
+    int64_t duration; /**< Duration in time_base units. */
+    EarwaxRational time_base; /**< Unit of time for this stream, wher 1/60 means 60 frames per second. */
+} EarwaxInfo;
+
+/**
  * Main container for an instance.
  */
 typedef struct {
@@ -64,17 +82,9 @@ typedef struct {
     AVPacket packet;
     AVFrame* frame;
     uint8_t* buffer;
+    // Information for this audio.
+    EarwaxInfo info;
 } EarwaxContext;
-
-/**
- * Used for returning audio info
- * to the user.
- */
-typedef struct {
-    int bitrate; /**< In bytes, the bitrate of the audio */
-    int sample_rate; /**< The rate of samples per-second */
-    int64_t duration; /**< Duration (in seconds) of the audio */
-} EarwaxInfo;
 
 /**
  * Structure for returning each chunk data during
@@ -87,7 +97,7 @@ typedef struct {
 typedef struct {
     char* data; /**< Pointer to the decoded data. */
     size_t size; /**< Size in bytes of the decoded data. */
-    int64_t time; /**< Time in seconds when chunk should be shown to user. */
+    int64_t time; /**< Time of chunks inside the stream in time_base units. */
 } EarwaxChunk;
 
 // --------
@@ -120,7 +130,7 @@ int earwax_new(EarwaxContext** ctx_ptr, const char* url);
 void earwax_drop(EarwaxContext** ctx);
 
 /**
- * Reads information from the provided context and sets it,
+ * Reads information from the provided context and sets it
  * in the provided pointer.
  */
 void earwax_get_info(const EarwaxContext* ctx, EarwaxInfo* info);
@@ -132,6 +142,12 @@ void earwax_get_info(const EarwaxContext* ctx, EarwaxInfo* info);
  * @returns the number of bytes in data.
  */
 int earwax_spit(EarwaxContext* ctx, EarwaxChunk* chunk);
+
+/**
+ * Moves the current position of the decoder to the given time (in time_base units).
+ * Useful for rewinding or fast-forwarding.
+ */
+int earwax_seek(EarwaxContext* ctx, int64_t pts);
 
 // --------
 // Private API
@@ -234,6 +250,9 @@ int earwax_new(EarwaxContext** ctx_ptr, const char* url) {
         * sizeof(uint16_t)
     );
 
+    // Sets information.
+    earwax_get_info(ctx, &ctx->info);
+
     // Up to this point everything is right!
     goto SUCCESS;
 
@@ -271,9 +290,14 @@ void earwax_get_info(const EarwaxContext* ctx, EarwaxInfo* info) {
 
     // Tries to find more meaningful values.
     if (ctx != NULL) {
+        AVStream* stream = ctx->format_ctx->streams[ctx->stream_index];
+
         info->bitrate = ctx->codec_ctx->bit_rate;
         info->sample_rate = ctx->codec_ctx->sample_rate;
-        info->duration = (ctx->format_ctx->duration + 5000) / AV_TIME_BASE;
+        info->start_time = stream->start_time;
+        info->duration = stream->duration;
+        info->time_base.num = stream->time_base.num;
+        info->time_base.den = stream->time_base.den;
     }
 }
 
@@ -296,6 +320,16 @@ int earwax_spit(EarwaxContext* ctx, EarwaxChunk* chunk) {
     }
 }
 
+int earwax_seek(EarwaxContext* ctx, int64_t pts) {
+    int64_t start_time = ctx->info.start_time;
+    int64_t duration = ctx->info.duration;
+
+    if (pts < start_time) pts = start_time;
+    if (pts > duration) pts = duration;
+
+    return av_seek_frame(ctx->format_ctx, ctx->stream_index, pts, AVSEEK_FLAG_BACKWARD);
+}
+
 // --------
 // Private API Definition
 // --------
@@ -307,14 +341,12 @@ int next_chunk(EarwaxContext* ctx, EarwaxChunk* chunk) {
             &ctx->buffer, ctx->frame->nb_samples,
             (const uint8_t**) ctx->frame->extended_data, ctx->frame->nb_samples
         );
-        AVRational rat = ctx->format_ctx->streams[ctx->stream_index]->time_base;
-
         chunk->data = ctx->buffer;
+        // Each sample is two bytes, and we have n channels.
         chunk->size = ctx->frame->nb_samples * ctx->frame->channels * sizeof(uint16_t);
-        chunk->time = (ctx->frame->pts * rat.num) / rat.den;
+        chunk->time = ctx->frame->pts;
 
         // Return the written bytes:
-        // Each sample is two bytes, and we have n channels.
         return chunk->size;
     }
     else {
@@ -326,6 +358,7 @@ int next_chunk(EarwaxContext* ctx, EarwaxChunk* chunk) {
     }
 }
 
+/* #include <ao/ao.h> */
 /* int main(int argc, char* argv[]) { */
 /*     earwax_init(); */
 /*     EarwaxContext* ctx = NULL; */
