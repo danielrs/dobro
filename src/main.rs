@@ -1,5 +1,8 @@
 //! This example asks for user login information, shows the available stations, and lets
 //! the user select which station to play.
+//!
+//! **Becareful**, this example is still too simple. It doesn't handle reconnection
+//! to pandora when credentials expire.
 
 extern crate rpassword;
 extern crate ao;

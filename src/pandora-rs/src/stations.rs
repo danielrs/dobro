@@ -297,4 +297,3 @@ struct RemoveSeedRequest {
     #[serde(rename="seedId")]
     seed_id: String,
 }
-
