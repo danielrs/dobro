@@ -1,7 +1,7 @@
 //! Methods defined by the unofficial Pandora API.
 
 /// The Pandora method.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Method {
     TestCheckLicensing,
 

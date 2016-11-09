@@ -20,7 +20,7 @@ use serde_json::value::{Value};
 use url::Url;
 
 pub fn request<T>(
-    client: &Client, http_method: HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>,
+    client: &Client, http_method: &HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>,
     credentials: Option<&Credentials>) -> Result<T> where T: Deserialize {
 
     let mut body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
@@ -55,7 +55,7 @@ pub fn request<T>(
 /// Returns a RequestBuilder with the HTTP method and URL set. The URL query string
 /// will include the auth information if credentials were provided.
 fn authenticate<'a>(
-    client: &'a Client, http_method: HttpMethod, endpoint: Endpoint, method: Method,
+    client: &'a Client, http_method: &HttpMethod, endpoint: Endpoint, method: Method,
     credentials: Option<&Credentials>) -> RequestBuilder<'a> {
 
     let url = format!("{}?method={}", endpoint.to_string(), method.to_string());
@@ -80,7 +80,7 @@ fn authenticate<'a>(
     }
 
     debug!("== URL ==\n{:?}", url);
-    client.request(http_method, url)
+    client.request(http_method.clone(), url)
 }
 
 /// Returns the authenticated body.

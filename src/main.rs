@@ -62,12 +62,13 @@ fn main() {
                 let mut choice_string = String::new();
                 stdin.read_line(&mut choice_string).unwrap();
                 let choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
+                println!("Choice: {}", choice);
                 if choice >= 0 && choice < stations.stations().len() as i32 {
                     break;
                 }
             }
 
-            play(pandora.stations(), &stations.stations()[choice as usize]);
+            play(pandora.stations(), &stations.stations()[(choice + 1)as usize]);
         },
         Err(e) => {
             println!("Unable to connect to pandora: {:?}", e);
@@ -81,6 +82,7 @@ fn play(stations: Stations, station: &StationItem) {
     let format = Format::new();
     let device = Device::new(&driver, &format, None).unwrap();
 
+    println!("Station \"{}\"", station.station_name);
     loop {
         let playlist = stations.playlist(station);
         let tracklist = playlist.list().unwrap();
