@@ -9,14 +9,17 @@ extern crate ao;
 extern crate earwax;
 extern crate pandora;
 
-use std::io;
-use std::io::{Write};
+mod player;
 
 use pandora::Pandora;
 use pandora::stations::{Stations, StationItem};
 
 use ao::*;
 use earwax::Earwax;
+
+use std::io;
+use std::io::{Write};
+use std::thread;
 
 fn main() {
     let stdin = io::stdin();
@@ -77,10 +80,8 @@ fn main() {
 }
 
 fn play(stations: Stations, station: &StationItem) {
-    let ao = Ao::new();
-    let driver = Driver::new().unwrap();
-    let format = Format::new();
-    let device = Device::new(&driver, &format, None).unwrap();
+    use player::Player;
+    let player = Player::new();
 
     println!("Station \"{}\"", station.station_name);
     loop {
@@ -88,18 +89,7 @@ fn play(stations: Stations, station: &StationItem) {
         let tracklist = playlist.list().unwrap();
 
         for track in tracklist {
-            if let Some(audio) = track.track_audio {
-                if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
-                    println!(
-                        "Playing \"{}\" by {}",
-                        track.song_name.unwrap_or("Unknown".to_owned()),
-                        track.artist_name.unwrap_or("Unknown".to_owned()),
-                    );
-                    while let Some(chunk) = earwax.spit() {
-                        device.play(chunk.data);
-                    }
-                }
-            }
+            player.play(track);
         }
     }
 }

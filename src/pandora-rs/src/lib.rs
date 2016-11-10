@@ -26,6 +26,7 @@ mod response;
 pub mod stations;
 
 pub use auth::Credentials;
+pub use playlist::Track;
 
 //////////
 // Module
