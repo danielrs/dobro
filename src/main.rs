@@ -1,15 +1,18 @@
-//! This example asks for user login information, shows the available stations, and lets
-//! the user select which station to play.
+//! This example asks for user login information, shows the available stations, and lets the user select which station to play.
 //!
 //! **Becareful**, this example is still too simple. It doesn't handle reconnection
 //! to pandora when credentials expire.
 
 extern crate rpassword;
+extern crate ncurses;
+
 extern crate ao;
 extern crate earwax;
 extern crate pandora;
 
 mod player;
+
+use ncurses::*;
 
 use pandora::Pandora;
 use pandora::stations::{Stations, StationItem};
@@ -19,77 +22,122 @@ use earwax::Earwax;
 
 use std::io;
 use std::io::{Write};
-use std::thread;
+use std::{thread, time};
 
 fn main() {
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
+    initscr();
+    scrollok(stdscr(), true);
+    noecho();
 
-    println!("Welcome to simple pandora!");
-    println!("Please login.");
+    attron(A_BOLD());
+    printw("Welcome to simple pandora!\n");
+    printw("Please login below\n");
+    attroff(A_BOLD());
+
 
     let mut email = String::new();
+    attron(A_BOLD());
+    printw("\nEmail: ");
+    attroff(A_BOLD());
+    echo();
+    getstr(&mut email);
+    noecho();
+
     let mut password = String::new();
-
-    loop {
-        print!("Email: ");
-        stdout.flush().unwrap();
-        if stdin.read_line(&mut email).unwrap() > 1 {
-            break;
-        }
-    }
-
-    loop {
-        print!("Password: ");
-        stdout.flush().unwrap();
-        if let Ok(pass) = rpassword::read_password() {
-            if pass.len() > 0 {
-                password = pass;
-                break;
-            }
-        }
-    }
+    attron(A_BOLD());
+    printw("\nPassword: ");
+    attroff(A_BOLD());
+    getstr(&mut password);
 
     match Pandora::new(&email.trim(), &password.trim()) {
         Ok(pandora) => {
             let stations = pandora.stations().list().unwrap();
             for (i, station) in stations.iter().enumerate() {
-                println!("{} - {}", i, station.station_name);
+                printw(&format!("\n{} - {}", i, station.station_name));
             }
 
-            let choice = 0;
+            let mut choice = 0;
             loop {
-                print!("Station number: ");
-                stdout.flush().unwrap();
-
+                attron(A_BOLD());
+                printw("\nStation choice: ");
+                attroff(A_BOLD());
+                echo();
                 let mut choice_string = String::new();
-                stdin.read_line(&mut choice_string).unwrap();
-                let choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
-                println!("Choice: {}", choice);
+                getstr(&mut choice_string);
+                noecho();
+
+                choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
                 if choice >= 0 && choice < stations.stations().len() as i32 {
                     break;
                 }
             }
 
-            play(pandora.stations(), &stations.stations()[(choice + 1)as usize]);
+            play(pandora.stations(), &stations.stations()[(choice)as usize]);
         },
-        Err(e) => {
-            println!("Unable to connect to pandora: {:?}", e);
+        Err(_) => {
+            attron(A_BLINK());
+            printw("\nUnable to connect to pandora using the provided credentials!");
+            attroff(A_BLINK());
+            getch();
         }
     }
+
+    endwin();
 }
 
 fn play(stations: Stations, station: &StationItem) {
-    use player::Player;
+    use std::sync::mpsc::channel;
+    use player::{Player, PlayerAction};
+
     let player = Player::new();
 
-    println!("Station \"{}\"", station.station_name);
+    attron(A_BOLD());
+    printw(&format!("\nPlaying station \"{}\"", station.station_name));
+    attroff(A_BOLD());
+
     loop {
         let playlist = stations.playlist(station);
         let tracklist = playlist.list().unwrap();
 
         for track in tracklist {
-            player.play(track);
+            if track.is_ad() { continue }
+
+            let (player_sender, receiver) = channel();
+            let (sender, player_receiver) = channel();
+
+            printw(&format!("\nNow playing \"{}\" by {}",
+                track.song_name.clone().unwrap_or("Unknown".to_owned()),
+                track.artist_name.clone().unwrap_or("Unknown".to_owned())
+            ));
+            refresh();
+
+            let player_handle = thread::spawn(move|| {
+                let player = Player::with_channel(player_sender, player_receiver);
+                player.play(track);
+            });
+
+            halfdelay(1);
+            loop {
+                // Send
+                let ch = getch();
+                if ch == 'n' as i32 {
+                    printw("\nSkipping song...");
+                    refresh();
+                    sender.send(PlayerAction::Stop);
+                    break;
+                }
+
+                // Receive
+                if let Ok(action) = receiver.try_recv() {
+                    match action {
+                        PlayerAction::Stop => break,
+                        _ => ()
+                    }
+                }
+            }
+            cbreak();
+
+            player_handle.join();
         }
     }
 }

@@ -112,6 +112,15 @@ pub struct Track {
 
     #[serde(rename="audioUrlMap")]
     pub track_audio: Option<TrackAudio>,
+
+    #[serde(rename="adToken")]
+    pub ad_token: Option<String>,
+}
+
+impl Track {
+    pub fn is_ad(&self) -> bool {
+        self.ad_token.is_some()
+    }
 }
 
 impl ToTrackToken for Track {

@@ -5,6 +5,7 @@ authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
 rpassword = "0.3"
+ncurses = "5.84.0"
 
 [dependencies.pandora]
 path = "src/pandora-rs"
