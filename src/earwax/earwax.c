@@ -92,7 +92,7 @@ typedef struct {
  * PCM data are always:
  *
  * 1. Signed integer of 16 bits.
- * 2. Interleaved to two 2 channels (stereo).
+ * 2. Interleaved to 2 channels (stereo).
  */
 typedef struct {
     char* data; /**< Pointer to the decoded data. */

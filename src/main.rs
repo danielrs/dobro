@@ -109,9 +109,8 @@ fn play(stations: Stations, station: &StationItem) {
                 track.song_name.clone().unwrap_or("Unknown".to_owned()),
                 track.artist_name.clone().unwrap_or("Unknown".to_owned())
             ));
-            refresh();
 
-            let player_handle = thread::spawn(move|| {
+            let player_handle = thread::spawn(move || {
                 let player = Player::with_channel(player_sender, player_receiver);
                 player.play(track);
             });
@@ -121,8 +120,9 @@ fn play(stations: Stations, station: &StationItem) {
                 // Send
                 let ch = getch();
                 if ch == 'n' as i32 {
-                    printw("\nSkipping song...");
-                    refresh();
+                    attron(A_BOLD());
+                    printw("  Skipping song...");
+                    attroff(A_BOLD());
                     sender.send(PlayerAction::Stop);
                     break;
                 }

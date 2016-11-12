@@ -60,7 +60,7 @@ impl Earwax {
     }
 
     /// Returns the information for this Earwax stream.
-    pub fn info<'a>(&'a self) -> &'a Info {
+    pub fn info(&self) -> &Info {
         &self.info
     }
 
