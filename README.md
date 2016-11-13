@@ -1,5 +1,5 @@
 # dobro
-Unofficial Pandora client written in Rust.
+Unofficial Pandora terminal client written in Rust.
 
 ### What's going on right now?
 
