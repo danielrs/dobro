@@ -17,13 +17,6 @@ use ncurses::*;
 use pandora::Pandora;
 use pandora::stations::{Stations, StationItem};
 
-use ao::*;
-use earwax::Earwax;
-
-use std::io;
-use std::io::{Write};
-use std::{thread, time};
-
 fn main() {
     initscr();
     scrollok(stdscr(), true);
@@ -86,8 +79,7 @@ fn main() {
 }
 
 fn play(stations: Stations, station: &StationItem) {
-    use std::sync::mpsc::channel;
-    use player::{Player, PlayerAction};
+    use player::{Player, PlayerStatus};
 
     let mut player = Player::new();
 
@@ -130,14 +122,8 @@ fn play(stations: Stations, station: &StationItem) {
                     return;
                 }
 
-                // Receive
-                if let &Some(ref receiver) = player.receiver() {
-                    if let Ok(action) = receiver.try_recv() {
-                        match action {
-                            PlayerAction::Stop => break,
-                            _ => ()
-                        }
-                    }
+                if player.status() == PlayerStatus::Stopped {
+                    break;
                 }
             }
             cbreak();
