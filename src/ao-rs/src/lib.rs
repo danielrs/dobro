@@ -8,7 +8,7 @@ use std::ptr;
 use libc::{c_int};
 
 /// Opaque struct for Ao handling. Make sure only one instance of this
-/// type is created.
+/// type is created, and that initialization is done in the main thread.
 pub struct Ao;
 impl Ao {
     /// Initializes libao.

@@ -89,7 +89,7 @@ fn play(stations: Stations, station: &StationItem) {
     use std::sync::mpsc::channel;
     use player::{Player, PlayerAction};
 
-    let player = Player::new();
+    let mut player = Player::new();
 
     attron(A_BOLD());
     printw(&format!("\nPlaying station \"{}\"", station.station_name));
@@ -102,18 +102,13 @@ fn play(stations: Stations, station: &StationItem) {
         for track in tracklist {
             if track.is_ad() { continue }
 
-            let (player_sender, receiver) = channel();
-            let (sender, player_receiver) = channel();
-
             printw(&format!("\nNow playing \"{}\" by {}",
                 track.song_name.clone().unwrap_or("Unknown".to_owned()),
                 track.artist_name.clone().unwrap_or("Unknown".to_owned())
             ));
 
-            let player_handle = thread::spawn(move || {
-                let player = Player::with_channel(player_sender, player_receiver);
-                player.play(track);
-            });
+            player.stop();
+            player.play(track);
 
             halfdelay(1);
             loop {
@@ -123,21 +118,54 @@ fn play(stations: Stations, station: &StationItem) {
                     attron(A_BOLD());
                     printw("  Skipping song...");
                     attroff(A_BOLD());
-                    sender.send(PlayerAction::Stop);
+                    refresh();
+                    player.stop();
                     break;
+                }
+                else if ch == 'p' as i32 {
+                    player.toggle_pause();
+                }
+                else if ch == 'q' as i32 {
+                    player.stop();
+                    return;
                 }
 
                 // Receive
-                if let Ok(action) = receiver.try_recv() {
-                    match action {
-                        PlayerAction::Stop => break,
-                        _ => ()
+                if let &Some(ref receiver) = player.receiver() {
+                    if let Ok(action) = receiver.try_recv() {
+                        match action {
+                            PlayerAction::Stop => break,
+                            _ => ()
+                        }
                     }
                 }
             }
             cbreak();
-
-            player_handle.join();
         }
     }
 }
+
+// pub struct Dobro {
+//     pandora: Pandora,
+//     player: Player,
+// }
+
+// impl Dobro {
+//     /// Creates a new Dobro instance.
+//     pub fn new(pandora: Pandora) -> Self {
+//         Dobro {
+//             pandora: pandora,
+//             player: Player::new();
+//         }
+//     }
+
+//     /// Returns a reference to the player.
+//     pub fn player(&self) -> &Player {
+//         &self.player
+//     }
+
+//     /// Returns a mutable reference to the player.
+//     pub fn player_mut(&mut self) -> &mut Player {
+//         &mut self.player
+//     }
+// }
