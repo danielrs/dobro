@@ -5,7 +5,7 @@ use pandora::Track;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::{Arc, Mutex, Condvar};
-use std::sync::mpsc::{channel, Sender};
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 /// Player for playing audio in a separate thread, with a channel
 /// for communication.
@@ -14,8 +14,10 @@ pub struct Player {
     #[allow(dead_code)]
     ao: ao::Ao,
 
-    // Sender for notifying the thread to stop
+    // Sender for notifying the thread to stop. And receiver
+    // for receiving status changes as soon as it happens.
     sender: Option<Sender<()>>,
+    receiver: Option<Receiver<PlayerStatus>>,
 
     // Thread.
     player_handle: Option<JoinHandle<()>>,
@@ -37,6 +39,7 @@ impl Player {
         Player {
             ao: ao::Ao::new(),
             sender: None,
+            receiver: None,
             player_handle: None,
             player_status: Arc::new(Mutex::new(PlayerStatus::Stopped)),
             pause_pair: Arc::new((Mutex::new(false), Condvar::new())),
@@ -45,6 +48,10 @@ impl Player {
 
     pub fn status(&self) -> PlayerStatus {
         *self.player_status.lock().unwrap()
+    }
+
+    pub fn receiver(&self) -> &Option<Receiver<PlayerStatus>> {
+        &self.receiver
     }
 
     /// Starts playing the given track in a separate thread; stopping
@@ -56,12 +63,16 @@ impl Player {
                 self.stop();
 
                 let (external_sender, receiver) = channel();
+                let (sender, external_receiver) = channel();
+
                 let player_status = self.player_status.clone();
                 let pause_pair = self.pause_pair.clone();
 
                 self.sender = Some(external_sender);
+                self.receiver = Some(external_receiver);
 
                 *player_status.lock().unwrap() = PlayerStatus::Playing;
+                sender.send(PlayerStatus::Playing);
                 self.player_handle = Some(thread::spawn(move || {
                     // TODO: Format should replicate earwax format.
                     let driver = ao::Driver::new().unwrap();
@@ -74,8 +85,10 @@ impl Player {
                         let mut paused = lock.lock().unwrap();
                         while *paused {
                             *player_status.lock().unwrap() = PlayerStatus::Paused;
+                            sender.send(PlayerStatus::Paused);
                             paused = cvar.wait(paused).unwrap();
                             *player_status.lock().unwrap() = PlayerStatus::Playing;
+                            sender.send(PlayerStatus::Playing);
                         }
 
                         // Stop signal message.
@@ -87,6 +100,7 @@ impl Player {
                          device.play(chunk.data);
                     }
                     *player_status.lock().unwrap() = PlayerStatus::Stopped;
+                    sender.send(PlayerStatus::Stopped);
                 }));
             }
         }
@@ -110,6 +124,7 @@ impl Player {
         }
 
         self.sender = None;
+        self.receiver = None;
         self.player_handle = None;
     }
 

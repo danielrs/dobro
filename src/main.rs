@@ -99,7 +99,6 @@ fn play(stations: Stations, station: &StationItem) {
                 track.artist_name.clone().unwrap_or("Unknown".to_owned())
             ));
 
-            player.stop();
             player.play(track);
 
             halfdelay(1);
@@ -122,8 +121,12 @@ fn play(stations: Stations, station: &StationItem) {
                     return;
                 }
 
-                if player.status() == PlayerStatus::Stopped {
-                    break;
+                if let &Some(ref receiver) = player.receiver() {
+                    if let Ok(action) = receiver.try_recv() {
+                        if action == PlayerStatus::Stopped {
+                            break;
+                        }
+                    }
                 }
             }
             cbreak();
