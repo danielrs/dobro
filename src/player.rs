@@ -46,10 +46,22 @@ impl Player {
         }
     }
 
+    /// Returns the current status of the player.
     pub fn status(&self) -> PlayerStatus {
         *self.player_status.lock().unwrap()
     }
 
+    /// Returns true if the player is stopped.
+    pub fn is_stopped(&self) -> bool {
+        *self.player_status.lock().unwrap() == PlayerStatus::Stopped
+    }
+
+    /// Returns a reference to the receiver.
+    ///
+    /// # Returns
+    /// * Some(Receiver<PlayerAction>) when the thread is running and emitting
+    /// messages.
+    /// * None when the thread is not running.
     pub fn receiver(&self) -> &Option<Receiver<PlayerStatus>> {
         &self.receiver
     }
@@ -160,6 +172,7 @@ impl Player {
     }
 }
 
+/// Enumeration type for showing player status.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PlayerStatus {
     Playing,

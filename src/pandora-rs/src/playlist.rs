@@ -14,25 +14,26 @@ use serde_json;
 /// Handler for Playlists.
 #[derive(Debug)]
 pub struct Playlist<'a> {
-    pandora: &'a Pandora<'a>,
+    pandora: &'a Pandora,
     station_token: String,
 }
 
 impl<'a> Playlist<'a> {
     /// Creates a new Playlist handler.
-    pub fn new<T>(pandora: &'a Pandora<'a>, station: &T) -> Playlist<'a>
+    pub fn new<T>(pandora: &'a Pandora, station: &T) -> Playlist<'a>
     where T: ToStationToken {
         Playlist { pandora: pandora, station_token: station.to_station_token() }
     }
 
     /// Gets the current tracklist from Pandora.
-    pub fn list(&self) -> Result<TrackList> {
-        self.pandora.post(
+    pub fn list(&self) -> Result<Vec<Track>> {
+        let tracklist = try!(self.pandora.post::<Tracklist>(
             Method::StationGetPlaylist,
-            Some(serde_json::to_value(TrackListRequest {
+            Some(serde_json::to_value(TracklistRequest {
                 station_token: self.station_token.clone()
             }))
-        )
+        ));
+        Ok(tracklist.items)
     }
 
     /// Rates a track.
@@ -57,47 +58,13 @@ pub trait ToTrackToken {
 
 /// List of tracks.
 #[derive(Debug, Deserialize)]
-pub struct TrackList {
-    #[serde(rename="items")]
-    tracks: Vec<Track>,
-}
-
-impl TrackList {
-    /// Returns the tracks.
-    pub fn tracks(&self) -> &[Track] {
-        &self.tracks
-    }
-
-    /// Returns an immutable iterator over the tracks.
-    pub fn iter(&self) -> Iter<Track> {
-        self.tracks.iter()
-    }
-
-    /// Returns a mutable iterator over the tracks.
-    pub fn iter_mut(&mut self) -> IterMut<Track> {
-        self.tracks.iter_mut()
-    }
-}
-
-impl IntoIterator for TrackList {
-    type Item = Track;
-    type IntoIter = IntoIter<Track>;
-    fn into_iter(self) -> IntoIter<Track> {
-        self.tracks.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a TrackList {
-    type Item = &'a Track;
-    type IntoIter = Iter<'a, Track>;
-    fn into_iter(self) -> Iter<'a, Track> {
-        self.tracks.iter()
-    }
+pub struct Tracklist {
+    pub items: Vec<Track>,
 }
 
 /// Track information. Most fields are optional since
 /// the tracklist can include ads.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Track {
     #[serde(rename="trackToken")]
     pub track_token: Option<String>,
@@ -133,7 +100,7 @@ impl ToTrackToken for Track {
 }
 
 /// Struct for deserializing audio types for a track.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct TrackAudio {
     #[serde(rename="lowQuality")]
     pub low_quality: Audio,
@@ -144,7 +111,7 @@ pub struct TrackAudio {
 }
 
 /// Audio information for a track.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Audio {
     pub bitrate: String,
     pub encoding: String,
@@ -158,7 +125,7 @@ pub struct Audio {
 ////////////////////
 
 #[derive(Serialize)]
-struct TrackListRequest {
+struct TracklistRequest {
     #[serde(rename="stationToken")]
     station_token: String,
 }

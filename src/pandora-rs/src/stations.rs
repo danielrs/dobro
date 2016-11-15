@@ -14,12 +14,12 @@ use serde_json;
 
 /// Handler for stations.
 pub struct Stations<'a> {
-    pandora: &'a Pandora<'a>,
+    pandora: &'a Pandora,
 }
 
 impl<'a> Stations<'a> {
     /// Creates a new Stations handler.
-    pub fn new(pandora: &'a Pandora<'a>) -> Stations<'a> {
+    pub fn new(pandora: &'a Pandora) -> Stations<'a> {
         Stations { pandora: pandora }
     }
 
@@ -114,7 +114,7 @@ pub trait ToStationToken {
 }
 
 /// Single item for StationList.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct StationItem {
     #[serde(rename="stationId")]
     pub station_id: String,

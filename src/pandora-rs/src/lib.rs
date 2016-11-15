@@ -47,13 +47,13 @@ use std::cell::RefCell;
 
 /// Main interface for interacting with the Pandora API
 #[derive(Debug)]
-pub struct Pandora<'a> {
+pub struct Pandora {
     client: Client,
-    endpoint: Endpoint<'a>,
+    endpoint: Endpoint<'static>,
     credentials: RefCell<Credentials>,
 }
 
-impl<'a> Pandora<'a> {
+impl Pandora {
     pub fn new(username: &str, password: &str) -> Result<Self> {
         let credentials = try!(Credentials::new(username, password));
         Ok(Pandora::with_credentials(credentials))

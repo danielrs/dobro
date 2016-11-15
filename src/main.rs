@@ -11,11 +11,18 @@ extern crate earwax;
 extern crate pandora;
 
 mod player;
+mod screens;
+mod state;
 
 use ncurses::*;
 
 use pandora::Pandora;
-use pandora::stations::{Stations, StationItem};
+use pandora::stations::{Stations, StationItem, Station};
+use pandora::playlist::Track;
+
+use player::Player;
+use state::{Trans, State, Automaton};
+use screens::*;
 
 fn main() {
     initscr();
@@ -44,28 +51,19 @@ fn main() {
 
     match Pandora::new(&email.trim(), &password.trim()) {
         Ok(pandora) => {
-            let stations = pandora.stations().list().unwrap();
-            for (i, station) in stations.iter().enumerate() {
-                printw(&format!("\n{} - {}", i, station.station_name));
-            }
+            let mut dobro = Dobro::new(pandora);
+            let mut automaton = Automaton::new(StationSelectScreen::new());
 
-            let mut choice = 0;
+            automaton.start(&mut dobro);
+
             loop {
-                attron(A_BOLD());
-                printw("\nStation choice: ");
-                attroff(A_BOLD());
-                echo();
-                let mut choice_string = String::new();
-                getstr(&mut choice_string);
-                noecho();
+                automaton.update(&mut dobro);
+                dobro.update();
 
-                choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
-                if choice >= 0 && choice < stations.stations().len() as i32 {
+                if !automaton.is_running() {
                     break;
                 }
             }
-
-            play(pandora.stations(), &stations.stations()[(choice)as usize]);
         },
         Err(_) => {
             attron(A_BLINK());
@@ -134,27 +132,76 @@ fn play(stations: Stations, station: &StationItem) {
     }
 }
 
-// pub struct Dobro {
-//     pandora: Pandora,
-//     player: Player,
-// }
+pub struct Dobro {
+    pandora: Pandora,
+    player: Player,
 
-// impl Dobro {
-//     /// Creates a new Dobro instance.
-//     pub fn new(pandora: Pandora) -> Self {
-//         Dobro {
-//             pandora: pandora,
-//             player: Player::new();
-//         }
-//     }
+    station: Option<StationItem>,
+    track: Option<Track>,
+    tracklist: Vec<Track>,
+}
 
-//     /// Returns a reference to the player.
-//     pub fn player(&self) -> &Player {
-//         &self.player
-//     }
+impl Dobro {
+    /// Creates a new Dobro instance.
+    pub fn new(pandora: Pandora) -> Self {
+        Dobro {
+            pandora: pandora,
+            player: Player::new(),
 
-//     /// Returns a mutable reference to the player.
-//     pub fn player_mut(&mut self) -> &mut Player {
-//         &mut self.player
-//     }
-// }
+            station: None,
+            track: None,
+            tracklist: Vec::with_capacity(5),
+        }
+    }
+
+    /// Returns a reference to the pandora handler.
+    pub fn pandora(&self) -> &Pandora {
+        &self.pandora
+    }
+
+    /// Returns a reference to the player.
+    pub fn player(&self) -> &Player {
+        &self.player
+    }
+
+    /// Returns a mutable reference to the player.
+    pub fn player_mut(&mut self) -> &mut Player {
+        &mut self.player
+    }
+
+    pub fn station(&self) -> &Option<StationItem> {
+        &self.station
+    }
+
+    pub fn set_station(&mut self, station: StationItem) {
+        self.station = Some(station);
+        self.track = None;
+        self.tracklist.clear();
+        self.player.stop();
+    }
+
+    pub fn track(&self) -> &Option<Track> {
+        &self.track
+    }
+
+    pub fn update(&mut self) {
+        if let Some(ref station) = self.station {
+            if self.tracklist.len() <= 0 {
+                let stations = self.pandora.stations();
+                let playlist = stations.playlist(station);
+                let mut tracklist = playlist.list().unwrap();
+                self.tracklist.append(&mut tracklist);
+            }
+
+            if self.player.is_stopped() {
+                while let Some(track) = self.tracklist.pop() {
+                    if !track.is_ad() {
+                        self.track = Some(track.clone());
+                        self.player.play(track);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}

@@ -92,12 +92,12 @@ impl SearchResults {
 
 /// Music struct for searching songs and artists.
 pub struct Music<'a> {
-    pandora: &'a Pandora<'a>,
+    pandora: &'a Pandora,
 }
 
 impl<'a> Music<'a> {
     /// Creates a new Music handler.
-    pub fn new(pandora: &'a Pandora<'a>) -> Music<'a> {
+    pub fn new(pandora: &'a Pandora) -> Music<'a> {
         Music { pandora: pandora }
     }
 
