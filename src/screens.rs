@@ -3,6 +3,8 @@ use ncurses::*;
 use super::Dobro;
 use state::*;
 
+use pandora::playlist::Track;
+
 pub struct StationSelectScreen {}
 
 impl StationSelectScreen {
@@ -27,35 +29,54 @@ impl State for StationSelectScreen {
             let mut choice_string = String::new();
             getstr(&mut choice_string);
             noecho();
+            printw(&choice_string);
+            refresh();
 
-            choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
-            if choice >= 0 && choice < stations.stations().len() as i32 {
-                break;
-            }
-            else if choice < 0 {
-                return Trans::Quit
-            }
+            break;
+            // choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
+            // if choice >= 0 && choice < stations.len() as i32 {
+            //     break;
+            // }
+            // else if choice < 0 {
+            //     return Trans::Quit
+            // }
+
         }
 
-        ctx.set_station(stations.stations()[choice as usize].clone());
-        Trans::Push(Box::new(StationScreen::new()))
+        // ctx.set_station(stations[choice as usize].clone());
+        ctx.set_station(stations[1].clone());
+        Trans::Replace(Box::new(StationScreen::new()))
     }
 }
 
-pub struct StationScreen {}
+pub struct StationScreen {
+    track: Option<Track>
+}
 
 impl StationScreen {
     pub fn new() -> Self {
-        StationScreen {}
+        StationScreen {
+            track: None,
+        }
     }
 }
 
 impl State for StationScreen {
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        if let &Some(ref track) = ctx.track() {
-            printw(&format!("Playing \"{}\" by {}",
-                            track.song_name.clone().unwrap_or("Unknown".to_owned()),
-                            track.artist_name.clone().unwrap_or("Unknown".to_owned())));
+        halfdelay(1);
+        let ch = getch();
+
+        if ch == 'q' as i32 {
+            return Trans::Pop;
+        }
+        else if ch == 'n' as i32 {
+            ctx.player.stop();
+        }
+        else if ch == 'p' as i32 {
+            ctx.player.toggle_pause();
+        }
+        else if ch == 's' as i32 {
+            return Trans::Push(Box::new(StationSelectScreen::new()));
         }
 
         Trans::None

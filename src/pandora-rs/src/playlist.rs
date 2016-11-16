@@ -58,7 +58,7 @@ pub trait ToTrackToken {
 
 /// List of tracks.
 #[derive(Debug, Deserialize)]
-pub struct Tracklist {
+struct Tracklist {
     pub items: Vec<Track>,
 }
 

@@ -24,8 +24,12 @@ impl<'a> Stations<'a> {
     }
 
     /// Lists the user stations.
-    pub fn list(&self) -> Result<StationList> {
-        self.pandora.post(Method::UserGetStationList, None)
+    pub fn list(&self) -> Result<Vec<StationItem>> {
+        let stations = try!(self.pandora.post::<StationList>(
+            Method::UserGetStationList,
+            None
+        ));
+        Ok(stations.stations)
     }
 
     /// Creates a new station.
@@ -130,49 +134,9 @@ impl ToStationToken for StationItem {
 
 /// List of stations.
 #[derive(Debug, Deserialize)]
-pub struct StationList {
-    stations: Vec<StationItem>,
-    checksum: String,
-}
-
-impl StationList {
-    /// Returns the stations.
-    pub fn stations(&self) -> &[StationItem] {
-        &self.stations
-    }
-
-    /// Returns the checksum for this list.
-    pub fn checksum<'a>(&'a self) -> &'a str {
-        &self.checksum
-    }
-
-    /// Returns an immutable iterator over the
-    /// stations.
-    pub fn iter(&self) -> Iter<StationItem> {
-        self.stations.iter()
-    }
-
-    /// Returns a mutable iterator over the
-    /// stations.
-    pub fn iter_mut(&mut self) -> IterMut<StationItem> {
-        self.stations.iter_mut()
-    }
-}
-
-impl IntoIterator for StationList {
-    type Item = StationItem;
-    type IntoIter = IntoIter<StationItem>;
-    fn into_iter(self) -> IntoIter<StationItem> {
-        self.stations.into_iter()
-    }
-}
-
-impl<'a> IntoIterator for &'a StationList {
-    type Item = &'a StationItem;
-    type IntoIter = Iter<'a, StationItem>;
-    fn into_iter(self) -> Iter<'a, StationItem> {
-        self.iter()
-    }
+struct StationList {
+    pub stations: Vec<StationItem>,
+    pub checksum: String,
 }
 
 /// Result type for a Pandora checksum request.
