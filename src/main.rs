@@ -24,6 +24,8 @@ use player::Player;
 use state::{Trans, State, Automaton};
 use screens::*;
 
+use std::sync::{Arc, Mutex};
+
 fn main() {
     initscr();
     scrollok(stdscr(), true);
@@ -58,8 +60,6 @@ fn main() {
 
             loop {
                 automaton.update(&mut dobro);
-                dobro.update();
-
                 if !automaton.is_running() {
                     break;
                 }
@@ -77,86 +77,81 @@ fn main() {
 }
 
 fn play(stations: Stations, station: &StationItem) {
-    use player::{Player, PlayerStatus};
+    unimplemented!()
+    // use player::{Player, PlayerStatus};
 
-    let mut player = Player::new();
+    // let mut player = Player::new();
 
-    attron(A_BOLD());
-    printw(&format!("\nPlaying station \"{}\"", station.station_name));
-    attroff(A_BOLD());
+    // attron(A_BOLD());
+    // printw(&format!("\nPlaying station \"{}\"", station.station_name));
+    // attroff(A_BOLD());
 
-    loop {
-        let playlist = stations.playlist(station);
-        let tracklist = playlist.list().unwrap();
+    // loop {
+    //     let playlist = stations.playlist(station);
+    //     let tracklist = playlist.list().unwrap();
 
-        for track in tracklist {
-            if track.is_ad() { continue }
+    //     for track in tracklist {
+    //         if track.is_ad() { continue }
 
-            printw(&format!("\nNow playing \"{}\" by {}",
-                track.song_name.clone().unwrap_or("Unknown".to_owned()),
-                track.artist_name.clone().unwrap_or("Unknown".to_owned())
-            ));
+    //         printw(&format!("\nNow playing \"{}\" by {}",
+    //             track.song_name.clone().unwrap_or("Unknown".to_owned()),
+    //             track.artist_name.clone().unwrap_or("Unknown".to_owned())
+    //         ));
 
-            player.play(track);
+    //         player.play(track);
 
-            halfdelay(1);
-            loop {
-                // Send
-                let ch = getch();
-                if ch == 'n' as i32 {
-                    attron(A_BOLD());
-                    printw("  Skipping song...");
-                    attroff(A_BOLD());
-                    refresh();
-                    player.stop();
-                    break;
-                }
-                else if ch == 'p' as i32 {
-                    player.toggle_pause();
-                }
-                else if ch == 'q' as i32 {
-                    player.stop();
-                    return;
-                }
+    //         halfdelay(1);
+    //         loop {
+    //             // Send
+    //             let ch = getch();
+    //             if ch == 'n' as i32 {
+    //                 attron(A_BOLD());
+    //                 printw("  Skipping song...");
+    //                 attroff(A_BOLD());
+    //                 refresh();
+    //                 player.stop();
+    //                 break;
+    //             }
+    //             else if ch == 'p' as i32 {
+    //                 player.toggle_pause();
+    //             }
+    //             else if ch == 'q' as i32 {
+    //                 player.stop();
+    //                 return;
+    //             }
 
-                if let &Some(ref receiver) = player.receiver() {
-                    if let Ok(action) = receiver.try_recv() {
-                        if action == PlayerStatus::Stopped {
-                            break;
-                        }
-                    }
-                }
-            }
-            cbreak();
-        }
-    }
+    //             if let &Some(ref receiver) = player.receiver() {
+    //                 if let Ok(action) = receiver.try_recv() {
+    //                     if action == PlayerStatus::Stopped {
+    //                         break;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         cbreak();
+    //     }
+    // }
 }
 
 pub struct Dobro {
-    pandora: Pandora,
+    pandora: Arc<Mutex<Pandora>>,
     player: Player,
-
-    station: Option<StationItem>,
-    track: Option<Track>,
-    tracklist: Vec<Track>,
 }
 
 impl Dobro {
     /// Creates a new Dobro instance.
     pub fn new(pandora: Pandora) -> Self {
-        Dobro {
-            pandora: pandora,
-            player: Player::new(),
+        let pandora = Arc::new(Mutex::new(pandora));
 
-            station: None,
-            track: None,
-            tracklist: Vec::with_capacity(5),
+        Dobro {
+            player: Player::new(pandora.clone()),
+            pandora: pandora,
         }
     }
 
     /// Returns a reference to the pandora handler.
-    pub fn pandora(&self) -> &Pandora {
-        &self.pandora
+    pub fn pandora(&self) -> Arc<Mutex<Pandora>> {
+        self.pandora.clone()
     }
 
     /// Returns a reference to the player.
@@ -167,41 +162,5 @@ impl Dobro {
     /// Returns a mutable reference to the player.
     pub fn player_mut(&mut self) -> &mut Player {
         &mut self.player
-    }
-
-    pub fn station(&self) -> &Option<StationItem> {
-        &self.station
-    }
-
-    pub fn set_station(&mut self, station: StationItem) {
-        self.station = Some(station);
-        self.track = None;
-        self.tracklist.clear();
-        self.player.stop();
-    }
-
-    pub fn track(&self) -> &Option<Track> {
-        &self.track
-    }
-
-    pub fn update(&mut self) {
-        if let Some(ref station) = self.station {
-            if self.tracklist.len() <= 0 {
-                let stations = self.pandora.stations();
-                let playlist = stations.playlist(station);
-                let mut tracklist = playlist.list().unwrap();
-                self.tracklist.append(&mut tracklist);
-            }
-
-            if self.player.is_stopped() {
-                while let Some(track) = self.tracklist.pop() {
-                    if !track.is_ad() {
-                        self.track = Some(track.clone());
-                        self.player.play(track);
-                        break;
-                    }
-                }
-            }
-        }
     }
 }

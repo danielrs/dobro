@@ -1,6 +1,7 @@
 use ncurses::*;
 
 use super::Dobro;
+use player::PlayerStatus;
 use state::*;
 
 use pandora::playlist::Track;
@@ -15,7 +16,9 @@ impl StationSelectScreen {
 
 impl State for StationSelectScreen {
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        let stations = ctx.pandora().stations().list().unwrap();
+        let pandora_arc = ctx.pandora();
+        let pandora = pandora_arc.lock().unwrap();
+        let stations = pandora.stations().list().unwrap();
         for (i, station) in stations.iter().enumerate() {
             printw(&format!("\n{} - {}", i, station.station_name));
         }
@@ -44,7 +47,7 @@ impl State for StationSelectScreen {
         }
 
         // ctx.set_station(stations[choice as usize].clone());
-        ctx.set_station(stations[1].clone());
+        ctx.player_mut().play(stations[1].clone());
         Trans::Replace(Box::new(StationScreen::new()))
     }
 }
@@ -66,11 +69,20 @@ impl State for StationScreen {
         halfdelay(1);
         let ch = getch();
 
+        if let &Some(ref receiver) = ctx.player().receiver() {
+            if let Ok(action) = receiver.try_recv() {
+                if action == PlayerStatus::Playing {
+                    printw("Playing new track!\n");
+                    refresh();
+                }
+            }
+        }
+
         if ch == 'q' as i32 {
             return Trans::Pop;
         }
         else if ch == 'n' as i32 {
-            ctx.player.stop();
+            ctx.player.skip();
         }
         else if ch == 'p' as i32 {
             ctx.player.toggle_pause();

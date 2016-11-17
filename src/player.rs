@@ -1,6 +1,7 @@
 use ao;
 use earwax::Earwax;
-use pandora::Track;
+
+use pandora::{Pandora, StationItem};
 
 use std::thread;
 use std::thread::JoinHandle;
@@ -10,21 +11,25 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 /// Player for playing audio in a separate thread, with a channel
 /// for communication.
 pub struct Player {
-    // Ao initialization state.
     #[allow(dead_code)]
     ao: ao::Ao,
+    player_handle: Option<JoinHandle<()>>,
 
-    // Sender for notifying the thread to stop. And receiver
-    // for receiving status changes as soon as it happens.
-    sender: Option<Sender<()>>,
-    receiver: Option<Receiver<PlayerStatus>>,
+    // Pandora handler.
+    pandora: Arc<Mutex<Pandora>>,
+
+    // Current station.
+    station: Arc<Mutex<Option<StationItem>>>,
 
     // Thread.
-    player_handle: Option<JoinHandle<()>>,
     player_status: Arc<Mutex<PlayerStatus>>,
-
-    // Condition variable for pausing.
     pause_pair: Arc<(Mutex<bool>, Condvar)>,
+
+    // Sender for notifying the player thread of different actions.
+    // Receiver for getting player status.
+    sender: Option<Sender<PlayerAction>>,
+    receiver: Option<Receiver<PlayerStatus>>,
+
 }
 
 impl Drop for Player {
@@ -35,15 +40,24 @@ impl Drop for Player {
 
 impl Player {
     /// Creates a new Player.
-    pub fn new() -> Self {
+    pub fn new(pandora: Arc<Mutex<Pandora>>) -> Self {
         Player {
             ao: ao::Ao::new(),
-            sender: None,
-            receiver: None,
             player_handle: None,
+
+            pandora: pandora,
+            station: Arc::new(Mutex::new(None)),
             player_status: Arc::new(Mutex::new(PlayerStatus::Stopped)),
             pause_pair: Arc::new((Mutex::new(false), Condvar::new())),
+
+            sender: None,
+            receiver: None,
         }
+    }
+
+    /// Returns the current station.
+    pub fn station(&self) -> Option<StationItem> {
+        self.station.lock().unwrap().clone()
     }
 
     /// Returns the current status of the player.
@@ -66,56 +80,75 @@ impl Player {
         &self.receiver
     }
 
-    /// Starts playing the given track in a separate thread; stopping
+    /// Starts playing the given station in a separate thread; stopping
     /// any previously started threads.
-    pub fn play(&mut self, track: Track) {
-        if let Some(audio) = track.track_audio {
-            if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
-                // Stops any previously running thread.
-                self.stop();
+    pub fn play(&mut self, station: StationItem) {
+        // Stops any previously running thread.
+        self.stop();
+        *self.station.lock().unwrap() = Some(station.clone());
 
-                let (external_sender, receiver) = channel();
-                let (sender, external_receiver) = channel();
+        let pandora  = self.pandora.clone();
+        // let station = self.station.clone();
+        let player_status = self.player_status.clone();
+        let pause_pair = self.pause_pair.clone();
 
-                let player_status = self.player_status.clone();
-                let pause_pair = self.pause_pair.clone();
+        let (external_sender, receiver) = channel();
+        let (sender, external_receiver) = channel();
 
-                self.sender = Some(external_sender);
-                self.receiver = Some(external_receiver);
+        self.sender = Some(external_sender);
+        self.receiver = Some(external_receiver);
 
-                *player_status.lock().unwrap() = PlayerStatus::Playing;
-                sender.send(PlayerStatus::Playing);
-                self.player_handle = Some(thread::spawn(move || {
-                    // TODO: Format should replicate earwax format.
-                    let driver = ao::Driver::new().unwrap();
-                    let format = ao::Format::new();
-                    let device = ao::Device::new(&driver, &format, None).unwrap();
+        self.player_handle = Some(thread::spawn(move || {
+            let set_status = |status: PlayerStatus| {
+                *player_status.lock().unwrap() = status;
+                sender.send(status);
+            };
 
-                    while let Some(chunk) = earwax.spit() {
-                        // Pauses.
-                        let &(ref lock, ref cvar) = &*pause_pair;
-                        let mut paused = lock.lock().unwrap();
-                        while *paused {
-                            *player_status.lock().unwrap() = PlayerStatus::Paused;
-                            sender.send(PlayerStatus::Paused);
-                            paused = cvar.wait(paused).unwrap();
-                            *player_status.lock().unwrap() = PlayerStatus::Playing;
-                            sender.send(PlayerStatus::Playing);
+            let driver = ao::Driver::new().unwrap();
+            let pandora = pandora.lock().unwrap();
+            let stations = pandora.stations();
+            loop {
+                let playlist = stations.playlist(&station);
+                let tracklist = playlist.list().unwrap();
+
+                for track in tracklist {
+                    if let Some(audio) = track.track_audio {
+                        if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
+                            // TODO: Format should replicate earwax format.
+                            let format = ao::Format::new();
+                            let device = ao::Device::new(&driver, &format, None).unwrap();
+
+                            set_status(PlayerStatus::Playing);
+                            while let Some(chunk) = earwax.spit() {
+                                // Pauses.
+                                let &(ref lock, ref cvar) = &*pause_pair;
+                                let mut paused = lock.lock().unwrap();
+                                while *paused {
+                                    set_status(PlayerStatus::Paused);
+                                    paused = cvar.wait(paused).unwrap();
+                                    set_status(PlayerStatus::Playing);
+                                }
+
+                                // Stop signal message.
+                                 if let Ok(action) = receiver.try_recv() {
+                                     match action {
+                                         PlayerAction::Skip => break,
+                                         PlayerAction::Stop => {
+                                            set_status(PlayerStatus::Stopped);
+                                            return;
+                                         }
+                                     }
+                                 }
+
+                                 // Plays chunk.
+                                 device.play(chunk.data);
+                            }
+                            set_status(PlayerStatus::Stopped);
                         }
-
-                        // Stop signal message.
-                         if let Ok(_) = receiver.try_recv() {
-                             break;
-                         }
-
-                         // Plays chunk.
-                         device.play(chunk.data);
                     }
-                    *player_status.lock().unwrap() = PlayerStatus::Stopped;
-                    sender.send(PlayerStatus::Stopped);
-                }));
+                }
             }
-        }
+        }));
     }
 
     /// Stops the audio thread.
@@ -127,7 +160,7 @@ impl Player {
 
         // Notifies the thread to stop.
         if let Some(ref sender) = self.sender {
-            sender.send(());
+            sender.send(PlayerAction::Stop);
         }
 
         // Waits for the thread to stop.
@@ -135,9 +168,17 @@ impl Player {
             player_handle.join().unwrap();
         }
 
+        self.player_handle = None;
+        *self.station.lock().unwrap() = None;
         self.sender = None;
         self.receiver = None;
-        self.player_handle = None;
+    }
+
+    /// Skips the current track (if any is playing).
+    pub fn skip(&mut self) {
+        if let Some(ref sender) = self.sender {
+            sender.send(PlayerAction::Skip);
+        }
     }
 
     /// Pauses the audio thread.
@@ -170,6 +211,12 @@ impl Player {
             self.pause();
         }
     }
+}
+
+/// Enumeration type for sending player actions.
+pub enum PlayerAction {
+    Skip,
+    Stop,
 }
 
 /// Enumeration type for showing player status.
