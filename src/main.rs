@@ -17,14 +17,12 @@ mod state;
 use ncurses::*;
 
 use pandora::Pandora;
-use pandora::stations::{Stations, StationItem, Station};
-use pandora::playlist::Track;
 
 use player::Player;
-use state::{Trans, State, Automaton};
+use state::{Automaton};
 use screens::*;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
 
 fn main() {
     initscr();
@@ -58,11 +56,8 @@ fn main() {
 
             automaton.start(&mut dobro);
 
-            loop {
+            while automaton.is_running() {
                 automaton.update(&mut dobro);
-                if !automaton.is_running() {
-                    break;
-                }
             }
         },
         Err(_) => {
@@ -76,72 +71,15 @@ fn main() {
     endwin();
 }
 
-fn play(stations: Stations, station: &StationItem) {
-    unimplemented!()
-    // use player::{Player, PlayerStatus};
-
-    // let mut player = Player::new();
-
-    // attron(A_BOLD());
-    // printw(&format!("\nPlaying station \"{}\"", station.station_name));
-    // attroff(A_BOLD());
-
-    // loop {
-    //     let playlist = stations.playlist(station);
-    //     let tracklist = playlist.list().unwrap();
-
-    //     for track in tracklist {
-    //         if track.is_ad() { continue }
-
-    //         printw(&format!("\nNow playing \"{}\" by {}",
-    //             track.song_name.clone().unwrap_or("Unknown".to_owned()),
-    //             track.artist_name.clone().unwrap_or("Unknown".to_owned())
-    //         ));
-
-    //         player.play(track);
-
-    //         halfdelay(1);
-    //         loop {
-    //             // Send
-    //             let ch = getch();
-    //             if ch == 'n' as i32 {
-    //                 attron(A_BOLD());
-    //                 printw("  Skipping song...");
-    //                 attroff(A_BOLD());
-    //                 refresh();
-    //                 player.stop();
-    //                 break;
-    //             }
-    //             else if ch == 'p' as i32 {
-    //                 player.toggle_pause();
-    //             }
-    //             else if ch == 'q' as i32 {
-    //                 player.stop();
-    //                 return;
-    //             }
-
-    //             if let &Some(ref receiver) = player.receiver() {
-    //                 if let Ok(action) = receiver.try_recv() {
-    //                     if action == PlayerStatus::Stopped {
-    //                         break;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         cbreak();
-    //     }
-    // }
-}
-
 pub struct Dobro {
-    pandora: Arc<Mutex<Pandora>>,
+    pandora: Arc<Pandora>,
     player: Player,
 }
 
 impl Dobro {
     /// Creates a new Dobro instance.
     pub fn new(pandora: Pandora) -> Self {
-        let pandora = Arc::new(Mutex::new(pandora));
+        let pandora = Arc::new(pandora);
 
         Dobro {
             player: Player::new(pandora.clone()),
@@ -150,8 +88,8 @@ impl Dobro {
     }
 
     /// Returns a reference to the pandora handler.
-    pub fn pandora(&self) -> Arc<Mutex<Pandora>> {
-        self.pandora.clone()
+    pub fn pandora(&self) -> &Arc<Pandora> {
+        &self.pandora
     }
 
     /// Returns a reference to the player.

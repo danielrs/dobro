@@ -44,14 +44,18 @@ use hyper::method::Method as HttpMethod;
 use serde::Deserialize;
 use serde_json::value::Value;
 
+use std::sync::{Mutex};
 use std::cell::RefCell;
 
-/// Main interface for interacting with the Pandora API
+/// Main interface for interacting with the Pandora API.
+/// A Pandora instance is thread-safe, since it doesn't
+/// really uses any state; only the credentials, which
+/// are protected by a Mutex.
 #[derive(Debug)]
 pub struct Pandora {
     client: Client,
     endpoint: Endpoint<'static>,
-    credentials: RefCell<Credentials>,
+    credentials: Mutex<RefCell<Credentials>>,
 }
 
 impl Pandora {
@@ -65,7 +69,7 @@ impl Pandora {
         Pandora {
             client: Client::new(),
             endpoint: DEFAULT_ENDPOINT,
-            credentials: RefCell::new(credentials),
+            credentials: Mutex::new(RefCell::new(credentials)),
         }
     }
 
@@ -93,13 +97,15 @@ impl Pandora {
 
     fn request<T>(&self, http_method: HttpMethod, method: Method, body: Option<Value>)
     -> Result<T> where T: Deserialize {
+        let credentials = self.credentials.lock().unwrap();
+
         let req = request(
             &self.client,
             &http_method,
             self.endpoint,
             method,
             body.clone(),
-            Some(&self.credentials.borrow()),
+            Some(&credentials.borrow()),
         );
 
         // Checks response and tries to revalidate possibly expired
@@ -108,7 +114,7 @@ impl Pandora {
             Ok(res) => Ok(res),
             Err(err) => {
                 // Update credentials.
-                if self.credentials.borrow_mut().refresh().is_err() {
+                if credentials.borrow_mut().refresh().is_err() {
                     // If there was an error updating credentials
                     // return first error.
                     return Err(err)
@@ -120,7 +126,7 @@ impl Pandora {
                     self.endpoint,
                     method,
                     body,
-                    Some(&self.credentials.borrow()),
+                    Some(&credentials.borrow()),
                 )
             }
         }

@@ -24,8 +24,6 @@ pub struct Earwax {
     info: Info,
 }
 
-
-
 impl Earwax {
     /// Creates a new Earwax instance from the given url.
     /// # Returns
