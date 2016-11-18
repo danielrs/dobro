@@ -8,10 +8,10 @@ rpassword = "0.3"
 ncurses = "5.84.0"
 
 [dependencies.pandora]
-path = "src/pandora-rs"
+path = "lib/pandora-rs"
 
 [dependencies.ao]
-path = "src/ao-rs"
+path = "lib/ao-rs"
 
 [dependencies.earwax]
-path = "src/earwax"
+path = "lib/earwax"
