@@ -64,20 +64,38 @@ impl State for StationScreen {
         halfdelay(1);
         let ch = getch();
 
-        if let &Some(ref receiver) = ctx.player().receiver() {
-            if let Ok(status) = receiver.try_recv() {
-                match status {
-                    PlayerStatus::Playing => {
-                        if let Some(ref track) = *ctx.player().track().lock().unwrap() {
-                            printw(
-                                &format!("Playing \"{}\" by {}\n",
-                                         track.song_name.clone().unwrap_or("Unknown".to_owned()),
-                                         track.artist_name.clone().unwrap_or("Unknown".to_owned())));
-                            refresh();
-                        }
-                    },
-                    _ => (),
-                }
+        if let Some(status) = ctx.player().next_status() {
+            match status {
+                PlayerStatus::Playing => {
+                    if let Some(ref track) = ctx.player().state().lock().unwrap().track {
+                        let loved = track.song_rating.unwrap_or(0) > 0;
+                        printw(
+                            &format!("\nPlaying \"{}\" by {}",
+                                     track.song_name.clone().unwrap_or("Unknown".to_owned()),
+                                     track.artist_name.clone().unwrap_or("Unknown".to_owned())));
+                        attron(COLOR_PAIR(1));
+                        printw(
+                            &format!("    {}\n", if loved { "<3" } else { "" }));
+                        attroff(COLOR_PAIR(1));
+                        refresh();
+                    }
+                },
+                _ => (),
+            }
+        }
+        else {
+            if let Some((current, total)) = ctx.player().state().lock().unwrap().progress {
+                let total_mins = total / 60;
+                let total_secs = total % 60;
+                let mins = current / 60;
+                let secs = current % 60;
+
+                let mut y = 0;
+                let mut x = 0;
+                getyx(stdscr(), &mut y, &mut x);
+                mv(y, 0);
+                clrtoeol();
+                printw(&format!("{:02}:{:02}/{:02}:{:02}", mins, secs, total_mins, total_secs));
             }
         }
 

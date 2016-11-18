@@ -17,9 +17,7 @@ pub struct Player {
     player_handle: Option<JoinHandle<()>>,
 
     // Player state.
-    station: Arc<Mutex<Option<StationItem>>>,
-    track: Arc<Mutex<Option<Track>>>,
-    player_status: Arc<Mutex<PlayerStatus>>,
+    state: Arc<Mutex<PlayerState>>,
     pause_pair: Arc<(Mutex<bool>, Condvar)>,
 
     // Sender for notifying the player thread of different actions.
@@ -42,9 +40,7 @@ impl Player {
             pandora: pandora,
             player_handle: None,
 
-            station: Arc::new(Mutex::new(None)),
-            track: Arc::new(Mutex::new(None)),
-            player_status: Arc::new(Mutex::new(PlayerStatus::Stopped)),
+            state: Arc::new(Mutex::new(PlayerState::new())),
             pause_pair: Arc::new((Mutex::new(false), Condvar::new())),
 
             sender: None,
@@ -52,19 +48,9 @@ impl Player {
         }
     }
 
-    /// Returns the current station.
-    pub fn station(&self) -> &Arc<Mutex<Option<StationItem>>> {
-        &self.station
-    }
-
-    /// Returns the current track.
-    pub fn track(&self) -> &Arc<Mutex<Option<Track>>> {
-        &self.track
-    }
-
-    /// Returns the current status of the player.
-    pub fn status(&self) -> PlayerStatus {
-        *self.player_status.lock().unwrap()
+    /// Returns the player state.
+    pub fn state(&self) -> &Arc<Mutex<PlayerState>> {
+        &self.state
     }
 
     /// Starts playing the given station in a separate thread; stopping
@@ -74,15 +60,13 @@ impl Player {
         self.stop();
 
         let pandora  = self.pandora.clone();
-        // let station = self.station.clone();
-        let atrack = self.track.clone();
-        let player_status = self.player_status.clone();
+        let state = self.state.clone();
         let pause_pair = self.pause_pair.clone();
 
         let (external_sender, receiver) = channel();
         let (sender, external_receiver) = channel();
 
-        *self.station.lock().unwrap() = Some(station.clone());
+        state.lock().unwrap().station = Some(station.clone());
         self.sender = Some(external_sender);
         self.receiver = Some(external_receiver);
 
@@ -90,12 +74,12 @@ impl Player {
             let driver = ao::Driver::new().unwrap();
 
             let set_status = |status: PlayerStatus| {
-                *player_status.lock().unwrap() = status;
+                state.lock().unwrap().status = status;
                 sender.send(status);
             };
-            loop {
-                let tracklist = pandora.stations().playlist(&station).list().unwrap();
 
+            set_status(PlayerStatus::Start);
+            while let Ok(tracklist) = pandora.stations().playlist(&station).list() {
                 for track in tracklist {
                     if track.is_ad() { continue; }
                     if let Some(ref audio) = track.track_audio {
@@ -103,10 +87,12 @@ impl Player {
                             // TODO: Format should replicate earwax format.
                             let format = ao::Format::new();
                             let device = ao::Device::new(&driver, &format, None).unwrap();
+                            let duration = earwax.info().duration.seconds();
 
-                            *atrack.lock().unwrap() = Some(track.clone());
+                            state.lock().unwrap().track = Some(track.clone());
                             set_status(PlayerStatus::Playing);
                             while let Some(chunk) = earwax.spit() {
+                                state.lock().unwrap().progress = Some((chunk.time.seconds(), duration));
                                 // Pauses.
                                 let &(ref lock, ref cvar) = &*pause_pair;
                                 let mut paused = lock.lock().unwrap();
@@ -135,6 +121,7 @@ impl Player {
                     }
                 }
             }
+            set_status(PlayerStatus::Shutdown);
         }));
     }
 
@@ -156,16 +143,14 @@ impl Player {
         }
 
         self.player_handle = None;
-        *self.station.lock().unwrap() = None;
-        *self.track.lock().unwrap() = None;
-        *self.player_status.lock().unwrap() = PlayerStatus::Stopped;
+        *self.state.lock().unwrap() = PlayerState::new();
         self.sender = None;
         self.receiver = None;
     }
 
     /// Returns true if the player is stopped.
     pub fn is_stopped(&self) -> bool {
-        *self.player_status.lock().unwrap() == PlayerStatus::Stopped
+        self.state.lock().unwrap().status == PlayerStatus::Stopped
     }
 
     /// Skips the current track (if any is playing).
@@ -214,14 +199,40 @@ impl Player {
         *lock.lock().unwrap()
     }
 
-    /// Returns a reference to the receiver.
+    /// Returns the most recent status from the player.
     ///
     /// # Returns
-    /// * Some(Receiver<PlayerAction>) when the thread is running and emitting
+    /// * Some(PlayerStatus) when the thread is running and emitting
     /// messages.
-    /// * None when the thread is not running.
-    pub fn receiver(&self) -> &Option<Receiver<PlayerStatus>> {
-        &self.receiver
+    /// * None when the thread is not running and there are no recent statuses.
+    pub fn next_status(&self) -> Option<PlayerStatus> {
+        let mut status = None;
+        if let Some(ref receiver) = self.receiver {
+            while let Ok(s) = receiver.try_recv() {
+                status = Some(s);
+            }
+        }
+        status
+    }
+}
+
+/// Container for the player state.
+pub struct PlayerState {
+    pub station: Option<StationItem>,
+    pub track: Option<Track>,
+    pub progress: Option<(i64, i64)>,
+    pub status: PlayerStatus,
+}
+
+impl PlayerState {
+    /// Returns a new PlayerState.
+    pub fn new() -> Self {
+        PlayerState {
+            station: None,
+            track: None,
+            progress: None,
+            status: PlayerStatus::Stopped,
+        }
     }
 }
 
@@ -234,6 +245,8 @@ pub enum PlayerAction {
 /// Enumeration type for showing player status.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PlayerStatus {
+    Start,
+    Shutdown,
     Playing,
     Paused,
     Unpaused,
