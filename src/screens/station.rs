@@ -114,8 +114,10 @@ impl State for StationScreen {
             }
         }
 
-        Self::print_progress(ctx);
-        Self::mv(-1, 0);
+        if ctx.player().state().lock().unwrap().status == PlayerStatus::Playing {
+            Self::print_progress(ctx);
+            Self::mv(-1, 0);
+        }
 
         if ch == 'q' as i32 {
             return Trans::Quit;
