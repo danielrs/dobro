@@ -74,14 +74,17 @@ impl Player {
             let driver = ao::Driver::new().unwrap();
 
             let set_status = |status: PlayerStatus| {
-                state.lock().unwrap().status = status;
+                state.lock().unwrap().status = status.clone();
                 sender.send(status);
             };
 
-            set_status(PlayerStatus::Start);
+            set_status(PlayerStatus::Start(station.clone()));
             while let Ok(tracklist) = pandora.stations().playlist(&station).list() {
                 for track in tracklist {
                     if track.is_ad() { continue; }
+
+                    state.lock().unwrap().track = Some(track.clone());
+                    set_status(PlayerStatus::Playing(track.clone()));
                     if let Some(ref audio) = track.track_audio {
                         if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
                             // TODO: Format should replicate earwax format.
@@ -89,17 +92,15 @@ impl Player {
                             let device = ao::Device::new(&driver, &format, None).unwrap();
                             let duration = earwax.info().duration.seconds();
 
-                            state.lock().unwrap().track = Some(track.clone());
-                            set_status(PlayerStatus::Playing);
                             while let Some(chunk) = earwax.spit() {
                                 state.lock().unwrap().progress = Some((chunk.time.seconds(), duration));
                                 // Pauses.
                                 let &(ref lock, ref cvar) = &*pause_pair;
                                 let mut paused = lock.lock().unwrap();
                                 while *paused {
-                                    set_status(PlayerStatus::Paused);
+                                    set_status(PlayerStatus::Paused(track.clone()));
                                     paused = cvar.wait(paused).unwrap();
-                                    set_status(PlayerStatus::Unpaused);
+                                    set_status(PlayerStatus::Playing(track.clone()));
                                 }
 
                                 // Stop signal message.
@@ -107,7 +108,7 @@ impl Player {
                                      match action {
                                          PlayerAction::Skip => break,
                                          PlayerAction::Stop => {
-                                            set_status(PlayerStatus::Stopped);
+                                            set_status(PlayerStatus::Stopped(track.clone()));
                                             return;
                                          }
                                      }
@@ -116,13 +117,18 @@ impl Player {
                                  // Plays chunk.
                                  device.play(chunk.data);
                             }
-                            set_status(PlayerStatus::Stopped);
+                            set_status(PlayerStatus::Stopped(track.clone()));
                         }
                     }
                 }
             }
             set_status(PlayerStatus::Shutdown);
         }));
+    }
+
+    /// Returns true if the player is playing audio.
+    pub fn is_playing(&self) -> bool {
+        self.state.lock().unwrap().status.is_playing()
     }
 
     /// Stops the audio thread.
@@ -150,7 +156,7 @@ impl Player {
 
     /// Returns true if the player is stopped.
     pub fn is_stopped(&self) -> bool {
-        self.state.lock().unwrap().status == PlayerStatus::Stopped
+        self.state.lock().unwrap().status.is_stopped()
     }
 
     /// Skips the current track (if any is playing).
@@ -195,8 +201,7 @@ impl Player {
 
     /// Returns true if the player is paused.
     pub fn is_paused(&self) -> bool {
-        let &(ref lock, _) = &*self.pause_pair;
-        *lock.lock().unwrap()
+        self.state.lock().unwrap().status.is_paused()
     }
 
     /// Returns the most recent status from the player.
@@ -208,7 +213,7 @@ impl Player {
     pub fn next_status(&self) -> Option<PlayerStatus> {
         let mut status = None;
         if let Some(ref receiver) = self.receiver {
-            while let Ok(s) = receiver.try_recv() {
+            if let Ok(s) = receiver.try_recv() {
                 status = Some(s);
             }
         }
@@ -231,7 +236,7 @@ impl PlayerState {
             station: None,
             track: None,
             progress: None,
-            status: PlayerStatus::Stopped,
+            status: PlayerStatus::Shutdown,
         }
     }
 }
@@ -243,12 +248,34 @@ pub enum PlayerAction {
 }
 
 /// Enumeration type for showing player status.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub enum PlayerStatus {
-    Start,
+    Start(StationItem),
     Shutdown,
-    Playing,
-    Paused,
-    Unpaused,
-    Stopped,
+    Playing(Track),
+    Paused(Track),
+    Stopped(Track),
+}
+
+impl PlayerStatus {
+    pub fn is_playing(&self) -> bool {
+        match *self {
+            PlayerStatus::Playing(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_paused(&self) -> bool {
+        match *self {
+            PlayerStatus::Paused(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        match *self {
+            PlayerStatus::Stopped(_) => true,
+            _ => false,
+        }
+    }
 }

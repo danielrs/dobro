@@ -2,11 +2,12 @@ use super::super::Dobro;
 use super::StationSelectScreen;
 
 use player::PlayerStatus;
+use ui::*;
 use state::*;
 
 use pandora::playlist::Track;
 
-use ncurses::*;
+use ncurses as nc;
 
 pub struct StationScreen {
     track: Option<Track>
@@ -19,21 +20,16 @@ impl StationScreen {
         }
     }
 
-    fn print_song(ctx: &mut Dobro) {
-        if let Some(ref track) = ctx.player().state().lock().unwrap().track {
-            let status = if ctx.player().is_paused() { "Paused" } else { "Playing" };
-            let loved = track.song_rating.unwrap_or(0) > 0;
-            printw(
-                &format!("{} \"{}\" by {}",
-                         status,
-                         track.song_name.clone().unwrap_or("Unknown".to_owned()),
-                         track.artist_name.clone().unwrap_or("Unknown".to_owned())));
-            attron(COLOR_PAIR(1));
-            printw(
-                &format!("    {}\n", if loved { "<3" } else { " " }));
-            attroff(COLOR_PAIR(1));
-            refresh();
-        }
+    fn print_song(status: &str, track: Track) {
+        let loved = track.song_rating.unwrap_or(0) > 0;
+        nc::printw(
+            &format!("{} \"{}\" by {}",
+                     status,
+                     track.song_name.clone().unwrap_or("Unknown".to_owned()),
+                     track.artist_name.clone().unwrap_or("Unknown".to_owned())));
+        nc::printw(
+            &format!("  {}\n", if loved { "<3" } else { " " }));
+        nc::refresh();
     }
 
     fn print_progress(ctx: &mut Dobro) {
@@ -46,10 +42,10 @@ impl StationScreen {
             // Print seconds.
             let mut y = 0;
             let mut x = 0;
-            getyx(stdscr(), &mut y, &mut x);
-            mv(y, 0);
-            clrtoeol();
-            printw(&format!("{:02}:{:02}/{:02}:{:02}\n", mins, secs, total_mins, total_secs));
+            nc::getyx(nc::stdscr(), &mut y, &mut x);
+            nc::mv(y, 0);
+            nc::clrtoeol();
+            nc::printw(&format!("{:02}:{:02}/{:02}:{:02}", mins, secs, total_mins, total_secs));
 
             // // Progress bar.
             // let mut max_y = 0;
@@ -71,66 +67,67 @@ impl StationScreen {
             // }
             // printw("|\n");
         }
-    }
-
-    fn mv(rel_y: i32, rel_x: i32) {
-        let mut y = 0;
-        let mut x = 0;
-        getyx(stdscr(), &mut y, &mut x);
-        mv(y + rel_y, x + rel_x);
+        nc::printw("\n");
     }
 }
 
 impl State for StationScreen {
-    fn start(&mut self, ctx: &mut Dobro) {
-        clear();
-        mv(0, 0);
+    fn resume(&mut self, ctx: &mut Dobro) {
+        // if let Some((status, station, song)) = match ctx.player().state().lock().unwrap().status {
+        //     PlayerStatus::Playing(station, song) => Some(("Playing", station, song)),
+        //     PlayerStatus::Paused(station, song) => Some(("Paused", station, song)),
+        //     PlayerStatus::Stopped(station, song) => Some(("Stopped", station, song)),
+        //     _ => None,
+        // };
 
-        Self::print_song(ctx);
-        Self::print_progress(ctx);
-        Self::mv(-1, 0);
+        // Self::print_song(status, ctx);
+        // Self::print_progress(ctx);
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        halfdelay(1);
-        let ch = getch();
-
         if let Some(status) = ctx.player().next_status() {
             match status {
-                PlayerStatus::Playing => {
-                    Self::print_song(ctx);
+                PlayerStatus::Start(station) => {
+                    nc::attron(nc::A_BOLD());
+                    nc::printw(&format!("Station \"{}\"\n", station.station_name));
+                    nc::attroff(nc::A_BOLD());
+                    nc::printw("\n\n");
                 },
-                PlayerStatus::Paused => {
-                    Self::mv(-1, 0);
-                    Self::print_song(ctx);
+                PlayerStatus::Playing(track) => {
+                    mvrel(-2, 0);
+                    Self::print_song("Playing", track);
+                    Self::print_progress(ctx);
                 },
-                PlayerStatus::Unpaused => {
-                    Self::mv(-1, 0);
-                    Self::print_song(ctx);
+                PlayerStatus::Paused(track) => {
+                    mvrel(-2, 0);
+                    Self::print_song("Paused", track);
+                    Self::print_progress(ctx);
                 },
-                PlayerStatus::Stopped => Self::mv(2, 0),
-                PlayerStatus::Shutdown => return Trans::Pop,
+                PlayerStatus::Stopped(track) => {
+                    mvrel(-2, 0);
+                    Self::print_song("Finished", track);
+                    nc::printw("\n\n");
+                },
+
                 _ => (),
             }
         }
-
-        if ctx.player().state().lock().unwrap().status == PlayerStatus::Playing {
+        if ctx.player().is_playing() {
+            mvrel(-1, 0);
             Self::print_progress(ctx);
-            Self::mv(-1, 0);
         }
 
-        if ch == 'q' as i32 {
-            return Trans::Quit;
-        }
-        else if ch == 'n' as i32 {
-            ctx.player_mut().skip();
-        }
-        else if ch == 'p' as i32 {
-            ctx.player_mut().toggle_pause();
-        }
-        else if ch == 's' as i32 {
-            return Trans::Push(Box::new(StationSelectScreen::new()));
-        }
+        nc::timeout(100);
+        let ch = nc::getch();
+        nc::timeout(-1);
+
+        match ch as u8 as char {
+            'n' => ctx.player_mut().skip(),
+            'p' => ctx.player_mut().toggle_pause(),
+            's' => return Trans::Push(Box::new(StationSelectScreen::new())),
+            'q' => return Trans::Quit,
+            _ => return Trans::None
+        };
 
         Trans::None
     }

@@ -12,9 +12,10 @@ extern crate pandora;
 
 mod player;
 mod screens;
+mod ui;
 mod state;
 
-use ncurses::*;
+use ncurses as nc;
 
 use pandora::Pandora;
 
@@ -24,30 +25,30 @@ use screens::*;
 
 use std::sync::{Arc};
 
+use ui::*;
+
 fn main() {
-    initscr();
-    scrollok(stdscr(), true);
-    noecho();
+    nc::initscr();
+    nc::scrollok(nc::stdscr(), true);
+    nc::noecho();
 
-    attron(A_BOLD());
-    printw("Welcome to simple pandora!\n");
-    printw("Please login below\n");
-    attroff(A_BOLD());
+    nc::attron(nc::A_BOLD());
+    nc::printw("Welcome to simple pandora!");
+    nc::printw("\nPlease login below");
+    nc::attroff(nc::A_BOLD());
 
+    nc::attron(nc::A_BOLD());
+    nc::printw("\nEmail: ");
+    nc::attroff(nc::A_BOLD());
+    let email = getstring();
 
-    let mut email = String::new();
-    attron(A_BOLD());
-    printw("\nEmail: ");
-    attroff(A_BOLD());
-    echo();
-    getstr(&mut email);
-    noecho();
+    nc::attron(nc::A_BOLD());
+    nc::printw("\nPassword: ");
+    nc::attroff(nc::A_BOLD());
+    let password = getsecretstring();
 
-    let mut password = String::new();
-    attron(A_BOLD());
-    printw("\nPassword: ");
-    attroff(A_BOLD());
-    getstr(&mut password);
+    nc::printw("\nLogging in...\n");
+    nc::refresh();
 
     match Pandora::new(&email.trim(), &password.trim()) {
         Ok(pandora) => {
@@ -58,17 +59,18 @@ fn main() {
 
             while automaton.is_running() {
                 automaton.update(&mut dobro);
+                nc::refresh();
             }
         },
         Err(_) => {
-            attron(A_BLINK());
-            printw("\nUnable to connect to pandora using the provided credentials!");
-            attroff(A_BLINK());
-            getch();
+            nc::attron(nc::A_BLINK());
+            nc::printw("\nUnable to connect to pandora using the provided credentials!");
+            nc::attroff(nc::A_BLINK());
+            nc::getch();
         }
     }
 
-    endwin();
+    nc::endwin();
 }
 
 pub struct Dobro {
