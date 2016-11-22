@@ -2,7 +2,7 @@
 Unofficial Pandora terminal client written in Rust.
 
 ### Building
-This application uses ffmpeg 3.2 and libao, so those libraries should be available to the compiler. If everything is installed a simple `cargo run` should suffice for testing the player.
+This application uses ffmpeg 3.2 and libao, so those libraries should be available to the compiler. If everything is installed a simple `cargo run` with the nightly compiler should suffice for testing the player.
 
 ### What's going on right now?
 
