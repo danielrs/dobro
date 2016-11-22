@@ -15,7 +15,7 @@ impl StationSelectScreen {
 }
 
 impl State for StationSelectScreen {
-    fn start(&mut self, ctx: &mut Dobro) {
+    fn start(&mut self, _ctx: &mut Dobro) {
         nc::attron(nc::A_BOLD());
         nc::printw("Stations ");
         nc::attroff(nc::A_BOLD());

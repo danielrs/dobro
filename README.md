@@ -10,21 +10,19 @@ This an app that I'm building during my free time. It will consist of the follow
 - Text-based user interface (TUI).
 - User Settings.
 
-#### API Interaction
+#### API Interaction (pandora-rs)
 Most of the work for this module is already done. It interacts with the API in a very rusty way using [hyper][hyper]; all
 the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json].
+The pandora-rs module interacts with the API found [here](https://6xq.net/pandora-apidoc/json/).
 
-#### Audio playback
-For **audio decoding** I made a small C library based on [ffmpeg][ffmpeg] called Earwax, specially tailored to be used in Rust (but it can still be used without it). For audio playpack I'm using [libao][libao] with safe ffi bindings.
+#### Audio playback (earwax, ao-rs)
+For **audio decoding** I made a small C library with Rust bindings based on [ffmpeg 3.2][ffmpeg] called Earwax. For audio playpack I'm using [libao][libao] with safe ffi bindings.
 
 #### TUI
-After audio playback.
+Simple interface made with ncurses. This would be the "main" Dobro application, and it builds on the lower-level components.
 
 #### User settings
 After everything else is done.
-
-### API
-The pandora-rs module interacts with the API found [here](https://6xq.net/pandora-apidoc/json/).
 
 [hyper]: https://github.com/hyperium/hyper
 [serde]: https://github.com/serde-rs/serde

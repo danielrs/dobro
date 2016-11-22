@@ -59,23 +59,48 @@ impl Player {
         // Stops any previously running thread.
         self.stop();
 
-        let pandora  = self.pandora.clone();
-        let state = self.state.clone();
-        let pause_pair = self.pause_pair.clone();
-
         let (external_sender, receiver) = channel();
         let (sender, external_receiver) = channel();
+        let (event_sender, event_receiver) = channel();
 
-        state.lock().unwrap().station = Some(station.clone());
+        self.state.lock().unwrap().station = Some(station.clone());
         self.sender = Some(external_sender);
         self.receiver = Some(external_receiver);
 
+        // Thread is dedicated to receive the events from the main thread and
+        // forward player events to the player thread.
+        let event_handle = {
+            let state = self.state.clone();
+            let sender = sender.clone();
+            thread::spawn(move || {
+                while let Ok(action) = receiver.recv() {
+                    match action {
+                        PlayerAction::Report => {
+                            sender.send(state.lock().unwrap().status.clone()).unwrap();
+                        },
+                        PlayerAction::Stop => {
+                            event_sender.send(PlayerAction::Stop).unwrap();
+                            break;
+                        },
+                        action => {
+                            event_sender.send(action).unwrap();
+                        }
+                    }
+                }
+            })
+        };
+
+        // Player thread, it fetches songs from the given stations and receives
+        // events from the event thread.
+        let pandora = self.pandora.clone();
+        let state = self.state.clone();
+        let pause_pair = self.pause_pair.clone();
         self.player_handle = Some(thread::spawn(move || {
             let driver = ao::Driver::new().unwrap();
 
             let set_status = |status: PlayerStatus| {
                 state.lock().unwrap().status = status.clone();
-                sender.send(status);
+                sender.send(status).unwrap();
             };
 
             set_status(PlayerStatus::Start(station.clone()));
@@ -103,14 +128,15 @@ impl Player {
                                     set_status(PlayerStatus::Playing(track.clone()));
                                 }
 
-                                // Stop signal message.
-                                 if let Ok(action) = receiver.try_recv() {
+                                // Message handler.
+                                 if let Ok(action) = event_receiver.try_recv() {
                                      match action {
                                          PlayerAction::Skip => break,
                                          PlayerAction::Stop => {
                                             set_status(PlayerStatus::Stopped(track.clone()));
                                             return;
                                          }
+                                         _ => (),
                                      }
                                  }
 
@@ -123,12 +149,29 @@ impl Player {
                 }
             }
             set_status(PlayerStatus::Shutdown);
+            event_handle.join().unwrap();
         }));
     }
 
     /// Returns true if the player is playing audio.
     pub fn is_playing(&self) -> bool {
         self.state.lock().unwrap().status.is_playing()
+    }
+
+    /// Requests the player to send an event reporting its current status.
+    pub fn report(&self) {
+        if let Some(ref sender) = self.sender {
+            sender.send(PlayerAction::Report).unwrap();
+        }
+    }
+
+    /// Skips the current track (if any is playing).
+    pub fn skip(&mut self) {
+        self.unpause();
+
+        if let Some(ref sender) = self.sender {
+            sender.send(PlayerAction::Skip).unwrap();
+        }
     }
 
     /// Stops the audio thread.
@@ -157,15 +200,6 @@ impl Player {
     /// Returns true if the player is stopped.
     pub fn is_stopped(&self) -> bool {
         self.state.lock().unwrap().status.is_stopped()
-    }
-
-    /// Skips the current track (if any is playing).
-    pub fn skip(&mut self) {
-        self.unpause();
-
-        if let Some(ref sender) = self.sender {
-            sender.send(PlayerAction::Skip);
-        }
     }
 
     /// Pauses the audio thread.
@@ -243,6 +277,7 @@ impl PlayerState {
 
 /// Enumeration type for sending player actions.
 pub enum PlayerAction {
+    Report,
     Skip,
     Stop,
 }

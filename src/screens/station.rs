@@ -9,18 +9,14 @@ use pandora::playlist::Track;
 
 use ncurses as nc;
 
-pub struct StationScreen {
-    track: Option<Track>
-}
+pub struct StationScreen {}
 
 impl StationScreen {
     pub fn new() -> Self {
-        StationScreen {
-            track: None,
-        }
+        StationScreen {}
     }
 
-    fn print_song(status: &str, track: Track) {
+    fn print_song(status: &str, track: &Track) {
         let loved = track.song_rating.unwrap_or(0) > 0;
         nc::printw(
             &format!("{} \"{}\" by {}",
@@ -29,7 +25,6 @@ impl StationScreen {
                      track.artist_name.clone().unwrap_or("Unknown".to_owned())));
         nc::printw(
             &format!("  {}\n", if loved { "<3" } else { " " }));
-        nc::refresh();
     }
 
     fn print_progress(ctx: &mut Dobro) {
@@ -72,16 +67,13 @@ impl StationScreen {
 }
 
 impl State for StationScreen {
-    fn resume(&mut self, ctx: &mut Dobro) {
-        // if let Some((status, station, song)) = match ctx.player().state().lock().unwrap().status {
-        //     PlayerStatus::Playing(station, song) => Some(("Playing", station, song)),
-        //     PlayerStatus::Paused(station, song) => Some(("Paused", station, song)),
-        //     PlayerStatus::Stopped(station, song) => Some(("Stopped", station, song)),
-        //     _ => None,
-        // };
+    fn start(&mut self, _ctx: &mut Dobro) {
+        nc::printw("Help: press 'p' to toggle pause; 'n' to skip; 's' to change station; 'q' to quit.\n");
+    }
 
-        // Self::print_song(status, ctx);
-        // Self::print_progress(ctx);
+    fn resume(&mut self, ctx: &mut Dobro) {
+        nc::printw("\n\n");
+        ctx.player().report();
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
@@ -95,17 +87,17 @@ impl State for StationScreen {
                 },
                 PlayerStatus::Playing(track) => {
                     mvrel(-2, 0);
-                    Self::print_song("Playing", track);
+                    Self::print_song("Playing", &track);
                     Self::print_progress(ctx);
                 },
                 PlayerStatus::Paused(track) => {
                     mvrel(-2, 0);
-                    Self::print_song("Paused", track);
+                    Self::print_song("Paused", &track);
                     Self::print_progress(ctx);
                 },
                 PlayerStatus::Stopped(track) => {
                     mvrel(-2, 0);
-                    Self::print_song("Finished", track);
+                    Self::print_song("Finished", &track);
                     nc::printw("\n\n");
                 },
 
