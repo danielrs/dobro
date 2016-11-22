@@ -16,7 +16,7 @@ This an app that I'm building during my free time. It will consist of the follow
 Local crates for components can be found at [src/lib](https://github.com/DanielRS/dobro/tree/master/src/lib).
 
 #### API Interaction (pandora-rs)
-Most of the work for this module is already done. It interacts with the API in a very rusty way using [hyper][hyper]; all the requests/responses are serializing/deserializing is done using [serde][serde] and [serde_json][serde_json]. The pandora-rs module interacts with the API found [here](https://6xq.net/pandora-apidoc/json/).
+Most of the work for this module is already done. It interacts with the API in a very rusty way using [hyper][hyper]; all the requests/responses are serialized/deserialized using [serde][serde] and [serde_json][serde_json]. The pandora-rs module interacts with the API found [here](https://6xq.net/pandora-apidoc/json/).
 
 #### Audio playback (earwax, ao-rs)
 For **audio decoding** I made a small C library with Rust bindings based on [ffmpeg 3.2][ffmpeg] called Earwax. For audio playpack I'm using [libao][libao] with safe ffi bindings.
