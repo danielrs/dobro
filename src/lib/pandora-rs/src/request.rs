@@ -29,7 +29,6 @@ pub fn request<T>(
             body = encrypt(credentials.encrypt_key(), &body);
         }
     }
-
     let builder = authenticate(client, http_method, endpoint, method, credentials);
 
     let mut res = try!(builder.body(&body).send());

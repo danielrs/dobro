@@ -150,7 +150,7 @@ pub struct Format {
     pub rate: u32,
     pub channels: u32,
     pub byte_format: ByteFormat,
-    // TODO: Implement macros for creating channel formats
+    // TODO: Implement macros for creating channel formats (mono, stereo, etc).
     pub channel_format: Option<String>,
 }
 

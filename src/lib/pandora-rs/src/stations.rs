@@ -6,10 +6,6 @@ use method::Method;
 use music::{ToMusicToken, MusicType};
 use playlist::Playlist;
 
-use std::slice::Iter;
-use std::slice::IterMut;
-use std::vec::IntoIter;
-
 use serde_json;
 
 /// Handler for stations.
@@ -58,7 +54,7 @@ impl<'a> Stations<'a> {
 
     /// Deletes a station.
     pub fn delete<T>(&self, station: &T) -> Result<()> where T: ToStationToken {
-        self.pandora.post(
+        self.pandora.post_noop(
             Method::StationDeleteStation,
             Some(serde_json::to_value(DeleteStationRequest {
                 station_token: station.to_station_token(),

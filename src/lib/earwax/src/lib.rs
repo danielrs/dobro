@@ -8,7 +8,6 @@ pub mod ffi;
 
 use error::{Error, Result};
 
-use libc::c_char;
 use num::rational::Rational64;
 
 use std::ffi::CString;

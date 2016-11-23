@@ -118,6 +118,32 @@ impl State for StationScreen {
             'p' => ctx.player_mut().toggle_pause(),
             's' => return Trans::Push(Box::new(StationSelectScreen::new())),
             'q' => return Trans::Quit,
+            rate @ '-' | rate @ '+' => {
+                let station = ctx.player().state().lock().unwrap().station.clone();
+                let track = ctx.player().state().lock().unwrap().track.clone();
+                if let Some(station) = station {
+                    if let Some(track) = track {
+                        let is_positive = match rate {
+                            '-' => false,
+                            _ => true,
+                        };
+                        nc::printw("Rating track... ");
+                        nc::refresh();
+
+                        let res = ctx.pandora().stations()
+                                     .playlist(&station).rate(track, is_positive);
+                        match res {
+                            Ok(_) => nc::printw("Done\n"),
+                            e => nc::printw(&format!("Error {:?}\n", e)),
+                        };
+
+                        nc::printw("\n\n");
+                        nc::refresh();
+
+                        ctx.player().report();
+                    }
+                }
+            }
             _ => return Trans::None
         };
 

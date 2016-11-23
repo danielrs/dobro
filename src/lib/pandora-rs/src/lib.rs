@@ -33,7 +33,7 @@ pub use stations::StationItem;
 // Module
 /////////
 
-use error::Result;
+use error::{Error, Result};
 use method::Method;
 use music::Music;
 use request::request;
@@ -89,10 +89,26 @@ impl Pandora {
         self.request(HttpMethod::Get, method, body)
     }
 
+    /// Proxy method for GET requests that do not return data.
+    pub fn get_noop(&self, method: Method, body: Option<Value>) -> Result<()> {
+        match self.request::<()>(HttpMethod::Get, method, body) {
+            Err(Error::Codec(_)) => Ok(()),
+            otherwise => otherwise,
+        }
+    }
+
     /// Proxy method for POST requests.
     pub fn post<T>(&self, method: Method, body: Option<Value>) -> Result<T>
     where T: Deserialize {
         self.request(HttpMethod::Post, method, body)
+    }
+
+    /// Proxy method for POST requests that do not return data.
+    pub fn post_noop(&self, method: Method, body: Option<Value>) -> Result<()> {
+        match self.request::<()>(HttpMethod::Get, method, body) {
+            Err(Error::Codec(_)) => Ok(()),
+            otherwise => otherwise,
+        }
     }
 
     fn request<T>(&self, http_method: HttpMethod, method: Method, body: Option<Value>)

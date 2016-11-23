@@ -5,10 +5,6 @@ use error::Result;
 use method::Method;
 use stations::ToStationToken;
 
-use std::slice::Iter;
-use std::slice::IterMut;
-use std::vec::IntoIter;
-
 use serde_json;
 
 /// Handler for Playlists.
@@ -36,11 +32,12 @@ impl<'a> Playlist<'a> {
         Ok(tracklist.items)
     }
 
+    // TODO: Result should not be empty
     /// Rates a track.
     pub fn rate<T>(&self, track: T, is_positive: bool) -> Result<()>
     where T: ToTrackToken {
         let track_token = track.to_track_token().unwrap_or("".to_owned());
-        self.pandora.post(
+        self.pandora.post_noop(
             Method::StationAddFeedback,
             Some(serde_json::to_value(RateTrackRequest {
                 station_token: self.station_token.clone(),
@@ -91,6 +88,15 @@ impl Track {
 }
 
 impl ToTrackToken for Track {
+    fn to_track_token(&self) -> Option<String> {
+        match self.track_token {
+            Some(ref track_token) => Some(track_token.clone()),
+            None => None
+        }
+    }
+}
+
+impl<'a> ToTrackToken for &'a Track {
     fn to_track_token(&self) -> Option<String> {
         match self.track_token {
             Some(ref track_token) => Some(track_token.clone()),
