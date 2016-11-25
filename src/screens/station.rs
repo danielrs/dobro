@@ -123,6 +123,7 @@ impl State for StationScreen {
                 let track = ctx.player().state().lock().unwrap().track.clone();
                 if let Some(station) = station {
                     if let Some(track) = track {
+                        mvrel(-1, 0);
                         nc::printw("Rating track... ");
                         nc::refresh();
 

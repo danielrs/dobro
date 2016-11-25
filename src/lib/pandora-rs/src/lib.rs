@@ -91,10 +91,7 @@ impl Pandora {
 
     /// Proxy method for GET requests that do not return data.
     pub fn get_noop(&self, method: Method, body: Option<Value>) -> Result<()> {
-        match self.request::<()>(HttpMethod::Get, method, body) {
-            Err(Error::Codec(_)) => Ok(()),
-            otherwise => otherwise,
-        }
+        self.request::<()>(HttpMethod::Get, method, body)
     }
 
     /// Proxy method for POST requests.
@@ -105,10 +102,7 @@ impl Pandora {
 
     /// Proxy method for POST requests that do not return data.
     pub fn post_noop(&self, method: Method, body: Option<Value>) -> Result<()> {
-        match self.request::<()>(HttpMethod::Post, method, body) {
-            Err(Error::Codec(_)) => Ok(()),
-            otherwise => otherwise,
-        }
+        self.request_noop(HttpMethod::Post, method, body)
     }
 
     fn request<T>(&self, http_method: HttpMethod, method: Method, body: Option<Value>)
@@ -128,6 +122,43 @@ impl Pandora {
         // credentials once.
         match req {
             Ok(res) => Ok(res),
+            Err(err) => {
+                // Update credentials.
+                if credentials.borrow_mut().refresh().is_err() {
+                    // If there was an error updating credentials
+                    // return first error.
+                    return Err(err)
+                }
+                // Try request again with updated credentials.
+                request(
+                    &self.client,
+                    &http_method,
+                    self.endpoint,
+                    method,
+                    body,
+                    Some(&credentials.borrow()),
+                )
+            }
+        }
+    }
+
+    fn request_noop(&self, http_method: HttpMethod, method: Method, body: Option<Value>)
+    -> Result<()> {
+        let credentials = self.credentials.lock().unwrap();
+
+        let req = request::<()>(
+            &self.client,
+            &http_method,
+            self.endpoint,
+            method,
+            body.clone(),
+            Some(&credentials.borrow()),
+        );
+
+        // Checks response and tries to revalidate possibly expired
+        // credentials once.
+        match req {
+            Ok(_) | Err(Error::Codec(_)) => Ok(()),
             Err(err) => {
                 // Update credentials.
                 if credentials.borrow_mut().refresh().is_err() {
