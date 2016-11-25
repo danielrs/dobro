@@ -2,7 +2,7 @@
 
 use super::Endpoint;
 use auth::Credentials;
-use crypt::encrypt;
+use crypt;
 use error::{Error, Result};
 use method::Method;
 use response::{Stat, Response};
@@ -26,9 +26,10 @@ pub fn request<T>(
     let mut body = try!(serde_json::to_string(&authenticate_body(body, credentials)));
     if method.is_encrypted() {
         if let Some(credentials) = credentials {
-            body = encrypt(credentials.encrypt_key(), &body);
+            body = crypt::encrypt(credentials.encrypt_key(), &body);
         }
     }
+
     let builder = authenticate(client, http_method, endpoint, method, credentials);
 
     let mut res = try!(builder.body(&body).send());
@@ -85,9 +86,9 @@ fn authenticate<'a>(
 /// Returns the authenticated body.
 ///
 /// # Arguments
-/// * `body` - If no body is provided creates an object instead. If a body is provided
+/// * `body` - If no body is provided  a new object is created instead. If a body is provided
 /// but is not an object, then the function does nothing and returns the same body.
-/// * `credentials` - The credentials to when adding the auth information to the body.
+/// * `credentials` - The credentials to use when adding the auth information to the body.
 fn authenticate_body(body: Option<Value>, credentials: Option<&Credentials>) -> Value {
     let mut body = match body {
         Some(body) => body,

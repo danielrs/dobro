@@ -123,24 +123,25 @@ impl State for StationScreen {
                 let track = ctx.player().state().lock().unwrap().track.clone();
                 if let Some(station) = station {
                     if let Some(track) = track {
-                        let is_positive = match rate {
-                            '-' => false,
-                            _ => true,
-                        };
                         nc::printw("Rating track... ");
                         nc::refresh();
 
                         let res = ctx.pandora().stations()
-                                     .playlist(&station).rate(track, is_positive);
+                                     .playlist(&station).rate(track, rate == '+');
                         match res {
                             Ok(_) => nc::printw("Done\n"),
-                            e => nc::printw(&format!("Error {:?}\n", e)),
+                            e => nc::printw("Error\n"),
                         };
 
                         nc::printw("\n\n");
                         nc::refresh();
 
-                        ctx.player().report();
+                        if rate == '-' {
+                            ctx.player_mut().skip();
+                        }
+                        else {
+                            ctx.player().report();
+                        }
                     }
                 }
             }

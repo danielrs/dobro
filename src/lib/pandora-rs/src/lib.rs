@@ -105,7 +105,7 @@ impl Pandora {
 
     /// Proxy method for POST requests that do not return data.
     pub fn post_noop(&self, method: Method, body: Option<Value>) -> Result<()> {
-        match self.request::<()>(HttpMethod::Get, method, body) {
+        match self.request::<()>(HttpMethod::Post, method, body) {
             Err(Error::Codec(_)) => Ok(()),
             otherwise => otherwise,
         }

@@ -19,7 +19,7 @@ pub fn getstring() -> String {
 pub fn wgetstring(window: nc::WINDOW) -> String {
     nc::noecho();
 
-    let mut string = String::new();
+    let mut string = String::with_capacity(32);
     let mut pos_history = Vec::new();
 
     let mut y = 0;
@@ -45,6 +45,7 @@ pub fn wgetstring(window: nc::WINDOW) -> String {
         ch = nc::wgetch(window);
     }
 
+    string.shrink_to_fit();
     string
 }
 
@@ -54,7 +55,7 @@ pub fn getsecretstring() -> String {
 
 pub fn wgetsecretstring(window: nc::WINDOW) -> String {
     nc::noecho();
-    let mut string = String::new();
+    let mut string = String::with_capacity(32);
 
     let mut ch = nc::wgetch(window);
     while ch != '\n' as i32 && ch != '\r' as i32 {
@@ -67,5 +68,6 @@ pub fn wgetsecretstring(window: nc::WINDOW) -> String {
         ch = nc::wgetch(window);
     }
 
+    string.shrink_to_fit();
     string
 }

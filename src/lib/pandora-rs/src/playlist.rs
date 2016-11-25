@@ -36,12 +36,11 @@ impl<'a> Playlist<'a> {
     /// Rates a track.
     pub fn rate<T>(&self, track: T, is_positive: bool) -> Result<()>
     where T: ToTrackToken {
-        let track_token = track.to_track_token().unwrap_or("".to_owned());
         self.pandora.post_noop(
             Method::StationAddFeedback,
             Some(serde_json::to_value(RateTrackRequest {
                 station_token: self.station_token.clone(),
-                track_token: track_token,
+                track_token: track.to_track_token().unwrap_or("".to_owned()),
                 is_positive: is_positive,
             }))
         )
