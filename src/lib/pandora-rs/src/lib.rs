@@ -129,6 +129,7 @@ impl Pandora {
                     // return first error.
                     return Err(err)
                 }
+
                 // Try request again with updated credentials.
                 request(
                     &self.client,
@@ -166,15 +167,21 @@ impl Pandora {
                     // return first error.
                     return Err(err)
                 }
+
                 // Try request again with updated credentials.
-                request(
+                let req = request::<()>(
                     &self.client,
                     &http_method,
                     self.endpoint,
                     method,
                     body,
                     Some(&credentials.borrow()),
-                )
+                );
+
+                match req {
+                    Ok(_) | Err(Error::Codec(_)) => Ok(()),
+                    Err(err) => Err(err),
+                }
             }
         }
     }

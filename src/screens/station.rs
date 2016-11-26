@@ -130,19 +130,17 @@ impl State for StationScreen {
                         let res = ctx.pandora().stations()
                                      .playlist(&station).rate(track, rate == '+');
                         match res {
-                            Ok(_) => nc::printw("Done\n"),
-                            e => nc::printw("Error\n"),
+                            Ok(_) => {
+                                nc::printw("Done\n");
+                                if rate == '-' { ctx.player_mut().skip(); }
+                                else { ctx.player().report(); }
+                            },
+                            e => {
+                                nc::printw("Error\n");
+                            }
                         };
-
                         nc::printw("\n\n");
                         nc::refresh();
-
-                        if rate == '-' {
-                            ctx.player_mut().skip();
-                        }
-                        else {
-                            ctx.player().report();
-                        }
                     }
                 }
             }
