@@ -25,7 +25,7 @@ For **audio decoding** I made a small C library with Rust bindings based on [ffm
 Simple interface made with ncurses. This would be the "main" Dobro application, and it builds on the lower-level components.
 
 #### User settings
-After everything else is done.
+After everything else is done. Should load from simple configuration files (preferably in toml format).
 
 [hyper]: https://github.com/hyperium/hyper
 [serde]: https://github.com/serde-rs/serde
