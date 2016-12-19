@@ -1,5 +1,6 @@
 use super::super::Dobro;
 use super::StationSelectScreen;
+use super::StationCreateScreen;
 
 use player::PlayerStatus;
 use ui::*;
@@ -68,7 +69,7 @@ impl StationScreen {
 
 impl State for StationScreen {
     fn start(&mut self, _ctx: &mut Dobro) {
-        nc::printw("Help: press 'p' to toggle pause; 'n' to skip; 's' to change station; 'q' to quit.\n");
+        nc::printw("Help: press 'p' to toggle pause; 'n' to skip; 'c' to create station; 's' to change station; 'q' to quit.\n");
     }
 
     fn resume(&mut self, ctx: &mut Dobro) {
@@ -116,6 +117,7 @@ impl State for StationScreen {
         match ch as u8 as char {
             'n' => ctx.player_mut().skip(),
             'p' => ctx.player_mut().toggle_pause(),
+            'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
             's' => return Trans::Push(Box::new(StationSelectScreen::new())),
             'q' => return Trans::Quit,
             rate @ '-' | rate @ '+' => {

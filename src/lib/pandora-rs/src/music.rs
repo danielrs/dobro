@@ -75,6 +75,11 @@ pub struct SearchResults {
 }
 
 impl SearchResults {
+    /// Returns true if near matches are available.
+    pub fn nearMatchesAvailable(&self) -> bool {
+        self.near_matches_available
+    }
+
     /// Returns the songs in the search results.
     pub fn songs<'a>(&'a self) -> &'a [Song] {
         &self.songs
