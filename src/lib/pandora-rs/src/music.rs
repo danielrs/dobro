@@ -11,6 +11,12 @@ pub trait ToMusicToken {
     fn to_music_token(&self) -> String;
 }
 
+impl ToMusicToken for String {
+    fn to_music_token(&self) -> String {
+        self.clone()
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum MusicType {
     #[serde(rename="song")]

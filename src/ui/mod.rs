@@ -71,3 +71,11 @@ pub fn wgetsecretstring(window: nc::WINDOW) -> String {
     string.shrink_to_fit();
     string
 }
+
+pub fn getchoice() -> i32 {
+    wgetchoice(nc::stdscr())
+}
+
+pub fn wgetchoice(window: nc::WINDOW) -> i32 {
+    getstring().trim().parse::<i32>().unwrap_or(-1)
+}

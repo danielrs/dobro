@@ -78,6 +78,11 @@ impl State for StationScreen {
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
+        // If status of player is not stopped go to station select screen
+        if ctx.player().is_stopped() {
+            return Trans::Replace(Box::new(StationSelectScreen::new()));
+        }
+
         if let Some(status) = ctx.player().next_status() {
             match status {
                 PlayerStatus::Start(station) => {
@@ -117,8 +122,17 @@ impl State for StationScreen {
         match ch as u8 as char {
             'n' => ctx.player_mut().skip(),
             'p' => ctx.player_mut().toggle_pause(),
-            'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
-            's' => return Trans::Push(Box::new(StationSelectScreen::new())),
+            'c' => return Trans::Replace(Box::new(StationCreateScreen::new())),
+            's' => return Trans::Replace(Box::new(StationSelectScreen::new())),
+            'd' => {
+                let station = ctx.player().state().lock().unwrap().station.clone();
+                if station.is_some() {
+                    if let Ok(_) = ctx.pandora().stations().delete(&station.unwrap()) {
+                        ctx.player_mut().stop();
+                        return Trans::Replace(Box::new(StationSelectScreen::new()));
+                    }
+                }
+            },
             'q' => return Trans::Quit,
             rate @ '-' | rate @ '+' => {
                 let station = ctx.player().state().lock().unwrap().station.clone();

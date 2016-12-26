@@ -32,10 +32,9 @@ impl State for StationSelectScreen {
             nc::attron(nc::A_BOLD());
             nc::printw("\nStation choice (negative to quit): ");
             nc::attroff(nc::A_BOLD());
-            let choice_string = getstring();
+            choice = getchoice();
             nc::printw("\n");
 
-            choice = choice_string.trim().parse::<i32>().unwrap_or(-1);
             if choice >= 0 && choice < stations.len() as i32 {
                 break;
             }

@@ -13,11 +13,14 @@ use hyper::client::{RequestBuilder, Client};
 use hyper::header::ContentLength;
 use hyper::method::Method as HttpMethod;
 
-use serde_json;
 use serde::Deserialize;
+use serde::ser::Error as SerdeError;
+use serde_json;
 use serde_json::value::{Value};
+use serde_json::error::Error as JsonError;
 
 use url::Url;
+
 
 pub fn request<T>(
     client: &Client, http_method: &HttpMethod, endpoint: Endpoint, method: Method, body: Option<Value>,
@@ -43,8 +46,11 @@ pub fn request<T>(
 
     let res: Response<T> = try!(serde_json::from_str(&body));
     match res {
-        Response { stat: Stat::Ok, .. } => {
-            Ok(res.result.unwrap())
+        Response { stat: Stat::Ok, result: Some(result), .. } => {
+            Ok(result)
+        },
+        Response { stat: Stat::Ok, result: None, .. } => {
+            Err(Error::Codec(JsonError::custom("Nothing to deserialize")))
         },
         Response { stat: Stat::Fail, .. } => {
             Err(Error::Api { message: res.message.unwrap(), code: res.code.unwrap().into() })
