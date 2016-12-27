@@ -1,6 +1,7 @@
 use super::super::Dobro;
-use super::StationSelectScreen;
 use super::StationCreateScreen;
+use super::StationRenameScreen;
+use super::StationSelectScreen;
 
 use player::PlayerStatus;
 use ui::*;
@@ -9,6 +10,17 @@ use state::*;
 use pandora::playlist::Track;
 
 use ncurses as nc;
+
+static HELP_TEXT: &'static str = "Keybindings:
+ '?' for help;
+ 'n' to skip;
+ 'p' to pause;
+ 'c' to create station;
+ 'r' to rename station;
+ 's' to change station;
+ 'd' to delete station;
+ '+' or '-' to rate the current track;
+ 'q' to quit.";
 
 pub struct StationScreen {}
 
@@ -68,24 +80,28 @@ impl StationScreen {
 }
 
 impl State for StationScreen {
-    fn start(&mut self, _ctx: &mut Dobro) {
-        nc::printw("Help: press 'p' to toggle pause; 'n' to skip; 'c' to create station; 's' to change station; 'q' to quit.\n");
-    }
-
     fn resume(&mut self, ctx: &mut Dobro) {
-        nc::printw("\n\n");
-        ctx.player().report();
+        let status = ctx.player().state().lock().unwrap().status.clone();
+
+        match status {
+            PlayerStatus::Playing(_) | PlayerStatus::Paused(_) => {
+                nc::printw("\n\n");
+                ctx.player().report();
+            },
+            _ => ()
+        };
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
         // If status of player is not stopped go to station select screen
-        if ctx.player().is_stopped() {
-            return Trans::Replace(Box::new(StationSelectScreen::new()));
+        if ctx.player().is_shutdown() {
+            return Trans::Push(Box::new(StationSelectScreen::new()));
         }
 
         if let Some(status) = ctx.player().next_status() {
             match status {
                 PlayerStatus::Start(station) => {
+                    nc::printw(&format!("{}\n", HELP_TEXT));
                     nc::attron(nc::A_BOLD());
                     nc::printw(&format!("Station \"{}\"\n", station.station_name));
                     nc::attroff(nc::A_BOLD());
@@ -120,20 +136,23 @@ impl State for StationScreen {
         nc::timeout(-1);
 
         match ch as u8 as char {
+            '?' => {
+                nc::printw(&format!("{}\n\n\n", HELP_TEXT));
+                ctx.player().report();
+            },
             'n' => ctx.player_mut().skip(),
             'p' => ctx.player_mut().toggle_pause(),
-            'c' => return Trans::Replace(Box::new(StationCreateScreen::new())),
-            's' => return Trans::Replace(Box::new(StationSelectScreen::new())),
+            'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
+            'r' => return Trans::Push(Box::new(StationRenameScreen::new())),
+            's' => return Trans::Push(Box::new(StationSelectScreen::new())),
             'd' => {
                 let station = ctx.player().state().lock().unwrap().station.clone();
                 if station.is_some() {
                     if let Ok(_) = ctx.pandora().stations().delete(&station.unwrap()) {
                         ctx.player_mut().stop();
-                        return Trans::Replace(Box::new(StationSelectScreen::new()));
                     }
                 }
             },
-            'q' => return Trans::Quit,
             rate @ '-' | rate @ '+' => {
                 let station = ctx.player().state().lock().unwrap().station.clone();
                 let track = ctx.player().state().lock().unwrap().track.clone();
@@ -160,6 +179,7 @@ impl State for StationScreen {
                     }
                 }
             }
+            'q' => return Trans::Quit,
             _ => return Trans::None
         };
 

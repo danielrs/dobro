@@ -21,7 +21,7 @@ use pandora::Pandora;
 
 use player::Player;
 use state::{Automaton};
-use screens::*;
+use screens::StationScreen;
 
 use std::sync::{Arc};
 
@@ -53,7 +53,7 @@ fn main() {
     match Pandora::new(&email.trim(), &password.trim()) {
         Ok(pandora) => {
             let mut dobro = Dobro::new(pandora);
-            let mut automaton = Automaton::new(StationSelectScreen::new());
+            let mut automaton = Automaton::new(StationScreen::new());
 
             automaton.start(&mut dobro);
 

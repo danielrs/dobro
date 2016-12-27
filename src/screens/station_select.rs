@@ -1,5 +1,6 @@
 use super::super::Dobro;
 use super::StationScreen;
+use super::StationCreateScreen;
 
 use ui::*;
 use state::*;
@@ -23,28 +24,34 @@ impl State for StationSelectScreen {
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
         let stations = ctx.pandora().stations().list().unwrap();
-        for (index, station) in stations.iter().enumerate() {
-            nc::printw(&format!("\n{} - {}", index, station.station_name));
+
+        if stations.len() <= 0 {
+            return Trans::Push(Box::new(StationCreateScreen::new()));
+        }
+        else {
+            for (index, station) in stations.iter().enumerate() {
+                nc::printw(&format!("\n{} - {}", index, station.station_name));
+            }
+
+            let mut choice = 0;
+            loop {
+                nc::attron(nc::A_BOLD());
+                nc::printw("\nStation choice (blank to cancel): ");
+                nc::attroff(nc::A_BOLD());
+                choice = getchoice();
+                nc::printw("\n");
+
+                if choice >= 0 && choice < stations.len() as i32 {
+                    break;
+                }
+                else if choice < 0 {
+                    return Trans::Pop
+                }
+            }
+
+            ctx.player_mut().play(stations[choice as usize].clone());
         }
 
-        let mut choice = 0;
-        loop {
-            nc::attron(nc::A_BOLD());
-            nc::printw("\nStation choice (negative to quit): ");
-            nc::attroff(nc::A_BOLD());
-            choice = getchoice();
-            nc::printw("\n");
-
-            if choice >= 0 && choice < stations.len() as i32 {
-                break;
-            }
-            else if choice < 0 {
-                return Trans::Pop
-            }
-        }
-
-        ctx.player_mut().play(stations[choice as usize].clone());
-        Trans::Replace(Box::new(StationScreen::new()))
+        Trans::Pop
     }
 }
-

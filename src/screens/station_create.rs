@@ -10,34 +10,25 @@ use ncurses as nc;
 
 const RESULTS_LENGTH: usize = 3;
 
-pub struct StationCreateScreen {
-    search_string: String,
-}
+pub struct StationCreateScreen {}
 
 impl StationCreateScreen {
     pub fn new() -> Self {
-        StationCreateScreen {
-            search_string: "".to_owned(),
-        }
+        StationCreateScreen {}
     }
 }
 
 impl State for StationCreateScreen {
-    fn start(&mut self, _ctx: &mut Dobro) {
+    fn start(&mut self, ctx: &mut Dobro) {
+        use std::cmp::min;
+
         nc::attron(nc::A_BOLD());
         nc::printw("Create station from artist or song: ");
         nc::attroff(nc::A_BOLD());
-        self.search_string = getstring();
+        let search_string = getstring();
         nc::printw("\n");
-    }
 
-    fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        use std::cmp::min;
-
-        let mut no_results = true;
-        if let Ok(results) = ctx.pandora().music().search(&self.search_string) {
-            no_results = false;
-
+        if let Ok(results) = ctx.pandora().music().search(&search_string) {
             let artists_len = min(RESULTS_LENGTH, results.artists().len()) as i32;
             let songs_len = min(RESULTS_LENGTH, results.songs().len()) as i32;
 
@@ -76,16 +67,14 @@ impl State for StationCreateScreen {
             if let Ok(station) = ctx.pandora().stations().create(&music_token.unwrap_or("".to_owned())) {
                 ctx.player_mut().play(station);
             }
-
-            return Trans::Replace(Box::new(StationScreen::new()));
         }
-
-        if no_results {
+        else {
             nc::printw("No results!\n");
             nc::getch();
         }
+    }
 
+    fn update(&mut self, _ctx: &mut Dobro) -> Trans {
         Trans::Pop
     }
 }
-

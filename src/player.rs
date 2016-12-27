@@ -64,6 +64,8 @@ impl Player {
         let (event_sender, event_receiver) = channel();
 
         self.state.lock().unwrap().station = Some(station.clone());
+
+        // Receiver and sender for communicating with main thread.
         self.sender = Some(external_sender);
         self.receiver = Some(external_receiver);
 
@@ -90,6 +92,9 @@ impl Player {
             })
         };
 
+        // Channel for checking initialization of thread.
+        let (start_sender, start_receiver) = channel();
+
         // Player thread, it fetches songs from the given stations and receives
         // events from the event thread.
         let pandora = self.pandora.clone();
@@ -103,7 +108,11 @@ impl Player {
                 sender.send(status).unwrap();
             };
 
+            // Set start status and notify the main thread so the parent process can
+            // return the function.
             set_status(PlayerStatus::Start(station.clone()));
+            start_sender.send(());
+
             while let Ok(tracklist) = pandora.stations().playlist(&station).list() {
                 for track in tracklist {
                     if track.is_ad() { continue; }
@@ -151,6 +160,9 @@ impl Player {
             set_status(PlayerStatus::Shutdown);
             event_handle.join().unwrap();
         }));
+
+        // Block until player thread changes status to start.
+        start_receiver.recv();
     }
 
     /// Returns true if the player is playing audio.
@@ -197,11 +209,6 @@ impl Player {
         self.receiver = None;
     }
 
-    /// Returns true if the player is stopped.
-    pub fn is_stopped(&self) -> bool {
-        self.state.lock().unwrap().status.is_stopped()
-    }
-
     /// Pauses the audio thread.
     pub fn pause(&mut self) {
         let &(ref lock, _) = &*self.pause_pair;
@@ -231,6 +238,16 @@ impl Player {
         else {
             self.pause();
         }
+    }
+
+    /// Returns true if the player is shutdown.
+    pub fn is_shutdown(&self) -> bool {
+        self.state.lock().unwrap().status.is_shutdown()
+    }
+
+    /// Returns true if the player is stopped.
+    pub fn is_stopped(&self) -> bool {
+        self.state.lock().unwrap().status.is_stopped()
     }
 
     /// Returns true if the player is paused.
@@ -293,6 +310,13 @@ pub enum PlayerStatus {
 }
 
 impl PlayerStatus {
+    pub fn is_shutdown(&self) -> bool {
+        match *self {
+            PlayerStatus::Shutdown => true,
+            _ => false,
+        }
+    }
+
     pub fn is_playing(&self) -> bool {
         match *self {
             PlayerStatus::Playing(_) => true,
