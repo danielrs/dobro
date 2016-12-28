@@ -111,7 +111,7 @@ impl Player {
             // Set start status and notify the main thread so the parent process can
             // return the function.
             set_status(PlayerStatus::Start(station.clone()));
-            start_sender.send(());
+            let _ = start_sender.send(());
 
             while let Ok(tracklist) = pandora.stations().playlist(&station).list() {
                 for track in tracklist {
@@ -162,7 +162,7 @@ impl Player {
         }));
 
         // Block until player thread changes status to start.
-        start_receiver.recv();
+        let _ = start_receiver.recv();
     }
 
     /// Returns true if the player is playing audio.
@@ -225,6 +225,7 @@ impl Player {
     }
 
     /// Toggles pause / unpause.
+    #[allow(unused_assignments)]
     pub fn toggle_pause(&mut self) {
         let mut is_paused = false;
         {

@@ -1,5 +1,4 @@
 use super::super::Dobro;
-use super::StationScreen;
 
 use ui::*;
 use state::*;
@@ -28,8 +27,10 @@ impl State for StationRenameScreen {
 
             if new_name.len() > 0 {
                 nc::printw("Renaming... ");
-                if let Ok(result) = ctx.pandora().stations().rename(&station, &new_name) {
-                    nc::printw("Done\n");
+                nc::refresh();
+
+                if let Ok(_) = ctx.pandora().stations().rename(&station, &new_name) {
+                    nc::printw(&format!("Renamed to \"{}\"\n", new_name));
                 }
                 else {
                     nc::printw("Unable to use that name\n");

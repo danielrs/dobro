@@ -1,7 +1,12 @@
+//! Main screen for the application, and initial state for the state machine;
+//! Popping this state means the application should end.
+
 use super::super::Dobro;
 use super::StationCreateScreen;
+use super::StationDeleteScreen;
 use super::StationRenameScreen;
 use super::StationSelectScreen;
+use super::TrackRateScreen;
 
 use player::PlayerStatus;
 use ui::*;
@@ -101,7 +106,7 @@ impl State for StationScreen {
         if let Some(status) = ctx.player().next_status() {
             match status {
                 PlayerStatus::Start(station) => {
-                    nc::printw(&format!("{}\n", HELP_TEXT));
+                    nc::printw("Type '?' for help.\n");
                     nc::attron(nc::A_BOLD());
                     nc::printw(&format!("Station \"{}\"\n", station.station_name));
                     nc::attroff(nc::A_BOLD());
@@ -145,40 +150,8 @@ impl State for StationScreen {
             'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
             'r' => return Trans::Push(Box::new(StationRenameScreen::new())),
             's' => return Trans::Push(Box::new(StationSelectScreen::new())),
-            'd' => {
-                let station = ctx.player().state().lock().unwrap().station.clone();
-                if station.is_some() {
-                    if let Ok(_) = ctx.pandora().stations().delete(&station.unwrap()) {
-                        ctx.player_mut().stop();
-                    }
-                }
-            },
-            rate @ '-' | rate @ '+' => {
-                let station = ctx.player().state().lock().unwrap().station.clone();
-                let track = ctx.player().state().lock().unwrap().track.clone();
-                if let Some(station) = station {
-                    if let Some(track) = track {
-                        mvrel(-1, 0);
-                        nc::printw("Rating track... ");
-                        nc::refresh();
-
-                        let res = ctx.pandora().stations()
-                                     .playlist(&station).rate(track, rate == '+');
-                        match res {
-                            Ok(_) => {
-                                nc::printw("Done\n");
-                                if rate == '-' { ctx.player_mut().skip(); }
-                                else { ctx.player().report(); }
-                            },
-                            e => {
-                                nc::printw("Error\n");
-                            }
-                        };
-                        nc::printw("\n\n");
-                        nc::refresh();
-                    }
-                }
-            }
+            'd' => return Trans::Push(Box::new(StationDeleteScreen::new())),
+            rate @ '-' | rate @ '+' => return Trans::Push(Box::new(TrackRateScreen::new(rate == '+'))),
             'q' => return Trans::Quit,
             _ => return Trans::None
         };

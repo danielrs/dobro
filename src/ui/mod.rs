@@ -77,5 +77,5 @@ pub fn getchoice() -> i32 {
 }
 
 pub fn wgetchoice(window: nc::WINDOW) -> i32 {
-    getstring().trim().parse::<i32>().unwrap_or(-1)
+    wgetstring(window).trim().parse::<i32>().unwrap_or(-1)
 }

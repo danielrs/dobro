@@ -1,5 +1,4 @@
 use super::super::Dobro;
-use super::StationScreen;
 
 use ui::*;
 use state::*;
@@ -46,7 +45,7 @@ impl State for StationCreateScreen {
             let mut music_token = None;
             loop {
                 nc::attron(nc::A_BOLD());
-                nc::printw("Music choice (negative to cancel): ");
+                nc::printw("Music choice (blank to cancel): ");
                 nc::attroff(nc::A_BOLD());
                 let choice = getchoice();
                 nc::printw("\n");
@@ -64,12 +63,14 @@ impl State for StationCreateScreen {
                 }
             }
 
-            if let Ok(station) = ctx.pandora().stations().create(&music_token.unwrap_or("".to_owned())) {
-                ctx.player_mut().play(station);
+            if let Some(music_token) = music_token {
+                if let Ok(station) = ctx.pandora().stations().create(music_token) {
+                    ctx.player_mut().play(station);
+                }
             }
         }
         else {
-            nc::printw("No results!\n");
+            nc::printw("No results\n");
             nc::getch();
         }
     }

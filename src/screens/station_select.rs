@@ -1,5 +1,4 @@
 use super::super::Dobro;
-use super::StationScreen;
 use super::StationCreateScreen;
 
 use ui::*;
@@ -33,7 +32,7 @@ impl State for StationSelectScreen {
                 nc::printw(&format!("\n{} - {}", index, station.station_name));
             }
 
-            let mut choice = 0;
+            let mut choice;
             loop {
                 nc::attron(nc::A_BOLD());
                 nc::printw("\nStation choice (blank to cancel): ");

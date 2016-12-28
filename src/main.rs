@@ -33,7 +33,7 @@ fn main() {
     nc::noecho();
 
     nc::attron(nc::A_BOLD());
-    nc::printw("Welcome to simple pandora!");
+    nc::printw("Welcome to Dobro! The unofficial pandora terminal client.");
     nc::printw("\nPlease login below");
     nc::attroff(nc::A_BOLD());
 
