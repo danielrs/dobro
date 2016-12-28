@@ -63,7 +63,7 @@ impl State for StationCreateScreen {
                 }
             }
 
-            if let Some(music_token) = music_token {
+            if let Some(ref music_token) = music_token {
                 if let Ok(station) = ctx.pandora().stations().create(music_token) {
                     ctx.player_mut().play(station);
                 }
