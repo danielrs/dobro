@@ -39,8 +39,8 @@ impl StationScreen {
         nc::printw(
             &format!("{} \"{}\" by {}",
                      status,
-                     track.song_name.clone().unwrap_or("Unknown".to_owned()),
-                     track.artist_name.clone().unwrap_or("Unknown".to_owned())));
+                     track.song_name.as_ref().unwrap_or(&"Unknown".to_owned()),
+                     track.artist_name.as_ref().unwrap_or(&"Unknown".to_owned())));
         nc::printw(
             &format!("  {}\n", if loved { "<3" } else { " " }));
     }

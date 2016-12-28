@@ -27,7 +27,11 @@ impl State for StationCreateScreen {
         let search_string = getstring();
         nc::printw("\n");
 
+        nc::printw("Searching... ");
+        nc::refresh();
         if let Ok(results) = ctx.pandora().music().search(&search_string) {
+            nc::printw("Done\n");
+
             let artists_len = min(RESULTS_LENGTH, results.artists().len()) as i32;
             let songs_len = min(RESULTS_LENGTH, results.songs().len()) as i32;
 
@@ -71,7 +75,6 @@ impl State for StationCreateScreen {
         }
         else {
             nc::printw("No results\n");
-            nc::getch();
         }
     }
 
