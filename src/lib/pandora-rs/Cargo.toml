@@ -4,7 +4,7 @@ version = "0.3.0"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
-hyper = "0.9.10"
+hyper = "0.9.14"
 log = "0.3.6"
 rust-crypto = "0.2.36"
 serde = "0.8"
