@@ -47,11 +47,12 @@ fn main() {
     nc::attroff(nc::A_BOLD());
     let password = getsecretstring();
 
-    nc::printw("\nLogging in...\n");
+    nc::printw("\nLogging in... ");
     nc::refresh();
 
     match Pandora::new(&email.trim(), &password.trim()) {
         Ok(pandora) => {
+            nc::printw("Done\n");
             let mut dobro = Dobro::new(pandora);
             let mut automaton = Automaton::new(StationScreen::new());
 
@@ -64,7 +65,7 @@ fn main() {
         },
         Err(_) => {
             nc::attron(nc::A_BLINK());
-            nc::printw("\nUnable to connect to pandora using the provided credentials!");
+            nc::printw("Unable to connect to pandora using the provided credentials\n");
             nc::attroff(nc::A_BLINK());
             nc::getch();
         }

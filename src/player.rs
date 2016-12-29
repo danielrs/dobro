@@ -113,7 +113,10 @@ impl Player {
             set_status(PlayerStatus::Start(station.clone()));
             let _ = start_sender.send(());
 
-            while let Ok(tracklist) = pandora.stations().playlist(&station).list() {
+            while let Ok(tracklist) = {
+                set_status(PlayerStatus::Fetching(station.clone()));
+                pandora.stations().playlist(&station).list()
+            } {
                 for track in tracklist {
                     if track.is_ad() { continue; }
 
@@ -304,7 +307,9 @@ pub enum PlayerAction {
 #[derive(Debug, Clone)]
 pub enum PlayerStatus {
     Start(StationItem),
+    Fetching(StationItem),
     Shutdown,
+
     Playing(Track),
     Paused(Track),
     Stopped(Track),

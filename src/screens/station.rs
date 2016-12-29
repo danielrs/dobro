@@ -2,6 +2,7 @@
 //! Popping this state means the application should end.
 
 use super::super::Dobro;
+use super::StationAddVarietyScreen;
 use super::StationCreateScreen;
 use super::StationDeleteScreen;
 use super::StationRenameScreen;
@@ -22,6 +23,7 @@ static HELP_TEXT: &'static str = "Keybindings:
  'p' to pause;
  'c' to create station;
  'r' to rename station;
+ 'a' to add variety to station;
  's' to change station;
  'd' to delete station;
  '+' or '-' to rate the current track;
@@ -112,6 +114,11 @@ impl State for StationScreen {
                     nc::attroff(nc::A_BOLD());
                     nc::printw("\n\n");
                 },
+                PlayerStatus::Fetching(_) => {
+                    mvrel(-2, 0);
+                    nc::printw("Fetching playlist...");
+                    nc::printw("\n\n");
+                },
                 PlayerStatus::Playing(track) => {
                     mvrel(-2, 0);
                     Self::print_song("Playing", &track);
@@ -149,6 +156,7 @@ impl State for StationScreen {
             'p' => ctx.player_mut().toggle_pause(),
             'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
             'r' => return Trans::Push(Box::new(StationRenameScreen::new())),
+            'a' => return Trans::Push(Box::new(StationAddVarietyScreen::new())),
             's' => return Trans::Push(Box::new(StationSelectScreen::new())),
             'd' => return Trans::Push(Box::new(StationDeleteScreen::new())),
             rate @ '-' | rate @ '+' => return Trans::Push(Box::new(TrackRateScreen::new(rate == '+'))),
