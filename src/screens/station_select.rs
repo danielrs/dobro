@@ -15,27 +15,30 @@ impl StationSelectScreen {
 }
 
 impl State for StationSelectScreen {
-    fn start(&mut self, _ctx: &mut Dobro) {
-        nc::attron(nc::A_BOLD());
-        nc::printw("Stations ");
-        nc::attroff(nc::A_BOLD());
-    }
-
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
+        nc::printw("Fetching Stations... ");
+        nc::refresh();
+
         let stations = ctx.pandora().stations().list().unwrap();
+
+        nc::printw("Done\n");
+
+        nc::attron(nc::A_BOLD());
+        nc::printw("Stations\n");
+        nc::attroff(nc::A_BOLD());
 
         if stations.len() <= 0 {
             return Trans::Push(Box::new(StationCreateScreen::new()));
         }
         else {
             for (index, station) in stations.iter().enumerate() {
-                nc::printw(&format!("\n{} - {}", index, station.station_name));
+                nc::printw(&format!("{} - {}\n", index, station.station_name));
             }
 
             let mut choice;
             loop {
                 nc::attron(nc::A_BOLD());
-                nc::printw("\nStation choice (blank to cancel): ");
+                nc::printw("Station choice (blank to cancel): ");
                 nc::attroff(nc::A_BOLD());
                 choice = getchoice();
                 nc::printw("\n");
