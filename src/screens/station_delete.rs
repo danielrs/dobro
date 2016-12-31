@@ -15,11 +15,11 @@ impl StationDeleteScreen {
 impl State for StationDeleteScreen {
     fn start(&mut self, ctx: &mut Dobro) {
         let station = ctx.player().state().lock().unwrap().station.clone();
-        if station.is_some() {
-            nc::printw("Deleting station... ");
+        if let Some(station) = station {
+            nc::printw(&format!("Deleting \"{}\"... ", station.station_name));
             nc::refresh();
 
-            if let Ok(_) = ctx.pandora().stations().delete(&station.unwrap()) {
+            if let Ok(_) = ctx.pandora().stations().delete(&station) {
                 nc::printw("Done\n");
                 ctx.player_mut().stop();
             }

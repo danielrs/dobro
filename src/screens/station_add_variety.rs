@@ -23,7 +23,7 @@ impl StationMusicScreen for StationAddVarietyScreen {
     fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T) where T: ToMusicToken {
         let station = ctx.player().state().lock().unwrap().station.clone();
         if let Some(ref station) = station {
-            nc::printw("Adding variety to station... ");
+            nc::printw(&format!("Adding variety to \"{}\"... ", station.station_name));
             nc::refresh();
             if let Ok(_) = ctx.pandora().stations().add_seed(station, music_token) {
                 nc::printw("Done\n");
