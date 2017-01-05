@@ -8,7 +8,7 @@ use std::thread::JoinHandle;
 use std::sync::{Arc, Mutex, Condvar};
 use std::sync::mpsc::{channel, Sender, Receiver};
 
-/// Player for playing audio in a separate thread, with a channel
+/// Player type for playing audio in a separate thread, with a channel
 /// for communication.
 pub struct Player {
     #[allow(dead_code)]
@@ -34,10 +34,10 @@ impl Drop for Player {
 
 impl Player {
     /// Creates a new Player.
-    pub fn new(pandora: Arc<Pandora>) -> Self {
+    pub fn new(pandora: &Arc<Pandora>) -> Self {
         Player {
             ao: ao::Ao::new(),
-            pandora: pandora,
+            pandora: pandora.clone(),
             player_handle: None,
 
             state: Arc::new(Mutex::new(PlayerState::new())),
@@ -113,7 +113,7 @@ impl Player {
             set_status(PlayerStatus::Start(station.clone()));
             let _ = start_sender.send(());
 
-            while let Ok(tracklist) = {
+            'track_loop: while let Ok(tracklist) = {
                 set_status(PlayerStatus::Fetching(station.clone()));
                 pandora.stations().playlist(&station).list()
             } {
@@ -146,7 +146,7 @@ impl Player {
                                          PlayerAction::Skip => break,
                                          PlayerAction::Stop => {
                                             set_status(PlayerStatus::Stopped(track.clone()));
-                                            return;
+                                            break 'track_loop;
                                          }
                                          _ => (),
                                      }
@@ -166,11 +166,6 @@ impl Player {
 
         // Block until player thread changes status to start.
         let _ = start_receiver.recv();
-    }
-
-    /// Returns true if the player is playing audio.
-    pub fn is_playing(&self) -> bool {
-        self.state.lock().unwrap().status.is_playing()
     }
 
     /// Requests the player to send an event reporting its current status.
@@ -247,6 +242,11 @@ impl Player {
     /// Returns true if the player is shutdown.
     pub fn is_shutdown(&self) -> bool {
         self.state.lock().unwrap().status.is_shutdown()
+    }
+
+    /// Returns true if the player is playing audio.
+    pub fn is_playing(&self) -> bool {
+        self.state.lock().unwrap().status.is_playing()
     }
 
     /// Returns true if the player is stopped.

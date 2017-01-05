@@ -85,7 +85,7 @@ impl Dobro {
         let pandora = Arc::new(pandora);
 
         Dobro {
-            player: Player::new(pandora.clone()),
+            player: Player::new(&pandora),
             pandora: pandora,
         }
     }
