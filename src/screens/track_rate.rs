@@ -19,8 +19,8 @@ impl TrackRateScreen {
 
 impl State for TrackRateScreen {
     fn start(&mut self, ctx: &mut Dobro) {
-        let station = ctx.player().state().lock().unwrap().station.clone();
-        let track = ctx.player().state().lock().unwrap().track.clone();
+        let station = ctx.player().state().station.clone();
+        let track = ctx.player().state().track.clone();
         if let Some(station) = station {
             if let Some(track) = track {
                 mvrel(-1, 0);

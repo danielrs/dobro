@@ -15,14 +15,14 @@ impl StationRenameScreen {
 
 impl State for StationRenameScreen {
     fn start(&mut self, ctx: &mut Dobro) {
-        let station = ctx.player().state().lock().unwrap().station.clone();
+        let station = ctx.player().state().station.clone();
         if let Some(station) = station {
             nc::attron(nc::A_BOLD());
             nc::printw(&format!("Renaming station \"{}\"\n", station.station_name));
             nc::attroff(nc::A_BOLD());
 
             nc::printw("New name (blank to cancel): ");
-            let new_name = getstring();
+            let new_name = getstring().trim().to_owned();
             nc::printw("\n");
 
             if new_name.len() > 0 {
@@ -30,10 +30,13 @@ impl State for StationRenameScreen {
                 nc::refresh();
 
                 if let Ok(_) = ctx.pandora().stations().rename(&station, &new_name) {
-                    nc::printw(&format!("Renamed to \"{}\"\n", new_name));
+                    nc::printw(&format!("Renamed station to \"{}\"\n", new_name));
+                    if let Some(ref mut st) = ctx.player_mut().state().station {
+                        st.station_name = new_name;
+                    }
                 }
                 else {
-                    nc::printw("Unable to use that name\n");
+                    nc::printw(&format!("Unable to use the name \"{}\"\n", &new_name));
                 }
             }
             else {

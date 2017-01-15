@@ -5,7 +5,7 @@ use pandora::{Pandora, StationItem, Track};
 
 use std::thread;
 use std::thread::JoinHandle;
-use std::sync::{Arc, Mutex, Condvar};
+use std::sync::{Arc, Mutex, MutexGuard, Condvar};
 use std::sync::mpsc::{channel, Sender, Receiver};
 
 /// Player type for playing audio in a separate thread, with a channel
@@ -48,9 +48,10 @@ impl Player {
         }
     }
 
-    /// Returns the player state.
-    pub fn state(&self) -> &Arc<Mutex<PlayerState>> {
-        &self.state
+    /// Returns the player state. Note that this function is synchronized with the player
+    /// thread, meaning that it blocks until "state" is available.
+    pub fn state(&self) -> MutexGuard<PlayerState> {
+        self.state.lock().unwrap()
     }
 
     /// Starts playing the given station in a separate thread; stopping

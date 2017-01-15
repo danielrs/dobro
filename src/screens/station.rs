@@ -48,7 +48,7 @@ impl StationScreen {
     }
 
     fn print_progress(ctx: &mut Dobro) {
-        if let Some((current, total)) = ctx.player().state().lock().unwrap().progress {
+        if let Some((current, total)) = ctx.player().state().progress {
             let total_mins = total / 60;
             let total_secs = total % 60;
             let mins = current / 60;
@@ -61,26 +61,6 @@ impl StationScreen {
             nc::mv(y, 0);
             nc::clrtoeol();
             nc::printw(&format!("{:02}:{:02}/{:02}:{:02}", mins, secs, total_mins, total_secs));
-
-            // // Progress bar.
-            // let mut max_y = 0;
-            // let mut max_x = 0;
-            // getmaxyx(stdscr(), &mut max_y, &mut max_x);
-            // printw("|");
-            // let mut total_progress = max_x as i64 - 2;
-            // let mut progress = current * total_progress / total;
-            // for p in 0..total_progress {
-            //     if p < progress {
-            //         printw("-");
-            //     }
-            //     else if p == progress {
-            //         printw("=");
-            //     }
-            //     else {
-            //         printw(" ");
-            //     }
-            // }
-            // printw("|\n");
         }
         nc::printw("\n");
     }
@@ -88,7 +68,7 @@ impl StationScreen {
 
 impl State for StationScreen {
     fn resume(&mut self, ctx: &mut Dobro) {
-        let status = ctx.player().state().lock().unwrap().status.clone();
+        let status = ctx.player().state().status.clone();
 
         match status {
             PlayerStatus::Playing(_) | PlayerStatus::Paused(_) => {
