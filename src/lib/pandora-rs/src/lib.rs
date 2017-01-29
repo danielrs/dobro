@@ -1,5 +1,4 @@
 #![feature(proc_macro)]
-#![feature(custom_attribute)]
 
 extern crate crypto;
 

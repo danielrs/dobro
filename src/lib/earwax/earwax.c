@@ -203,9 +203,9 @@ int earwax_new(EarwaxContext** ctx_ptr, const char* url) {
     ctx->stream_index = -1;
     ctx->codec_ctx = avcodec_alloc_context3(NULL);
     for (int i = 0; i < ctx->format_ctx->nb_streams; ++i) {
-        AVCodecParameters* codecpar = ctx->format_ctx->streams[i]->codecpar;
-        if (codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
-            avcodec_parameters_to_context(ctx->codec_ctx, codecpar);
+        AVCodecContext* codec_ctx = ctx->format_ctx->streams[i]->codec;
+        if (codec_ctx->codec_type == AVMEDIA_TYPE_AUDIO) {
+            avcodec_copy_context(ctx->codec_ctx, codec_ctx);
             ctx->stream_index = i;
         }
     }
@@ -302,21 +302,48 @@ void earwax_get_info(const EarwaxContext* ctx, EarwaxInfo* info) {
 }
 
 int earwax_spit(EarwaxContext* ctx, EarwaxChunk* chunk) {
-    int chunk_size = next_chunk(ctx, chunk);
-    if (chunk_size > 0) {
-        // Return pending chunks.
-        return chunk_size;
+    while (ctx->packet.size > 0) {
+        int got_frame = 0;
+        int result =  avcodec_decode_audio4(ctx->codec_ctx, ctx->frame, &got_frame, &(ctx->packet));
+
+        if (result > 0 && got_frame) {
+            ctx->packet.size -= result;
+            ctx->packet.data += result;
+
+            swr_convert(
+                ctx->swr,
+                &ctx->buffer, ctx->frame->nb_samples,
+                (const uint8_t**) ctx->frame->extended_data, ctx->frame->nb_samples
+            );
+
+            // Each sample is two bytes (uint16_t), and we have n channels.
+            chunk->data = ctx->buffer;
+            chunk->size = ctx->frame->nb_samples * ctx->frame->channels * sizeof(uint16_t);
+            chunk->time = ctx->frame->pkt_pts;
+
+            // Return the written bytes:
+            return chunk->size;
+        }
+        else {
+            // NOTE: This code should be unreachable in production.
+            ctx->packet.size = 0;
+            ctx->packet.data = NULL;
+
+            chunk->data = NULL;
+            chunk->size = 0;
+            chunk->time = 0;
+
+            return chunk->size;
+        }
     }
     else {
-        // Ask for more chunks.
-        if (av_read_frame(ctx->format_ctx, &ctx->packet) >= 0) {
-            if (ctx->packet.stream_index == ctx->stream_index) {
-                avcodec_send_packet(ctx->codec_ctx, &ctx->packet);
-            }
-            av_packet_unref(&ctx->packet);
+        if (av_read_frame(ctx->format_ctx, &(ctx->packet)) == 0
+        && ctx->packet.stream_index == ctx->stream_index) {
+            return earwax_spit(ctx, chunk);
         }
-
-        return next_chunk(ctx, chunk);
+        else {
+            return 0;
+        }
     }
 }
 
@@ -328,34 +355,6 @@ int earwax_seek(EarwaxContext* ctx, int64_t pts) {
     if (pts > duration) pts = duration;
 
     return av_seek_frame(ctx->format_ctx, ctx->stream_index, pts, AVSEEK_FLAG_BACKWARD);
-}
-
-// --------
-// Private API Definition
-// --------
-
-int next_chunk(EarwaxContext* ctx, EarwaxChunk* chunk) {
-    if (avcodec_receive_frame(ctx->codec_ctx, ctx->frame) == 0) {
-        swr_convert(
-            ctx->swr,
-            &ctx->buffer, ctx->frame->nb_samples,
-            (const uint8_t**) ctx->frame->extended_data, ctx->frame->nb_samples
-        );
-        chunk->data = ctx->buffer;
-        // Each sample is two bytes, and we have n channels.
-        chunk->size = ctx->frame->nb_samples * ctx->frame->channels * sizeof(uint16_t);
-        chunk->time = ctx->frame->pts;
-
-        // Return the written bytes:
-        return chunk->size;
-    }
-    else {
-        chunk->data = NULL;
-        chunk->size = 0;
-        chunk->time = 0;
-
-        return chunk->size;
-    }
 }
 
 /* #include <ao/ao.h> */
