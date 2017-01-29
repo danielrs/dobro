@@ -133,7 +133,7 @@ impl State for StationScreen {
                 ctx.player().report();
             },
             'n' => ctx.player_mut().skip(),
-            'p' => ctx.player_mut().toggle_pause(),
+            'p' | ' ' => ctx.player_mut().toggle_pause(),
             'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
             'r' => return Trans::Push(Box::new(StationRenameScreen::new())),
             'a' => return Trans::Push(Box::new(StationAddVarietyScreen::new())),
