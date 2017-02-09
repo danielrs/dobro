@@ -236,9 +236,6 @@ int earwax_new(EarwaxContext** ctx_ptr, const char* url) {
     av_opt_set_sample_fmt(ctx->swr, "out_sample_fmt", AV_SAMPLE_FMT_S16, 0);
     swr_init(ctx->swr);
 
-    // Packet init.
-    av_init_packet(&ctx->packet);
-
     // Frame space.
     ctx->frame = av_frame_alloc();
 
@@ -272,8 +269,9 @@ void earwax_drop(EarwaxContext** ctx_ptr) {
         EarwaxContext* ctx = *ctx_ptr;
 
         DELETE(ctx->buffer);
+        av_frame_unref(ctx->frame);
         av_frame_free(&ctx->frame);
-        av_packet_unref(&ctx->packet);
+        av_free_packet(&ctx->packet);
         swr_free(&ctx->swr);
         avcodec_free_context(&ctx->codec_ctx);
         avformat_close_input(&ctx->format_ctx);
@@ -306,22 +304,42 @@ int earwax_spit(EarwaxContext* ctx, EarwaxChunk* chunk) {
         int got_frame = 0;
         int bytes =  avcodec_decode_audio4(ctx->codec_ctx, ctx->frame, &got_frame, &(ctx->packet));
 
-        if (bytes > 0 && got_frame) {
+        if (bytes > 0) {
             ctx->packet.size -= bytes;
             ctx->packet.data += bytes;
+        }
 
+        if (got_frame) {
+            // Next frame.
             return next_chunk(ctx, chunk);
         }
+        else if (ctx->packet.size > 0) {
+            // Still processing the packet.
+            return earwax_spit(ctx, chunk);
+        }
         else {
+            // We are done with the packet.
             ctx->packet.size = 0;
             ctx->packet.data = NULL;
-
             return earwax_spit(ctx, chunk);
         }
     }
-    else if (av_read_frame(ctx->format_ctx, &(ctx->packet)) == 0
-    && ctx->packet.stream_index == ctx->stream_index) {
-        return earwax_spit(ctx, chunk);
+    else {
+        // Free packet and unrefs frame.
+        av_frame_unref(ctx->frame);
+        av_free_packet(&ctx->packet);
+
+        if (av_read_frame(ctx->format_ctx, &(ctx->packet)) == 0) {
+            if (ctx->packet.stream_index == ctx->stream_index) {
+                return earwax_spit(ctx, chunk);
+            }
+            else {
+                // Drop unwanted package.
+                ctx->packet.size = 0;
+                ctx->packet.data = NULL;
+                return earwax_spit(ctx, chunk);
+            }
+        }
     }
 
     return 0;
@@ -356,40 +374,48 @@ int next_chunk(EarwaxContext* ctx, EarwaxChunk* chunk) {
     return chunk->size;
 }
 
+/**
+ * Example program for testing the library.
+ */
+
 /* #include <ao/ao.h> */
 /* int main(int argc, char* argv[]) { */
 /*     earwax_init(); */
-/*     EarwaxContext* ctx = NULL; */
-/*     EarwaxInfo info; */
-/*     earwax_new(&ctx, argv[1]); */
-/*     earwax_get_info(ctx, &info); */
 
-/*     printf("Bit rate: %d\n", info.bitrate); */
-/*     printf("Sample rate: %d\n", info.sample_rate); */
-/*     printf("Duration: %d\n", info.duration); */
+/*     while(1) { */
+/*         EarwaxContext* ctx = NULL; */
+/*         EarwaxInfo info; */
+/*         earwax_new(&ctx, argv[1]); */
+/*         earwax_get_info(ctx, &info); */
 
-/*     if (ctx != NULL) { */
-/*         // Ao stuff */
-/*         ao_initialize(); */
-/*         ao_device *device; */
-/*         ao_sample_format format; */
-/*         int default_driver = ao_default_driver_id(); */
-/*         memset(&format, 0, sizeof(format)); */
-/*         format.bits = 16; */
-/*         format.channels = 2; */
-/*         format.rate = 44100; */
-/*         format.byte_format = AO_FMT_NATIVE; */
-/*         device = ao_open_live(default_driver, &format, NULL); */
+/*         printf("Bit rate: %d\n", info.bitrate); */
+/*         printf("Sample rate: %d\n", info.sample_rate); */
+/*         printf("Duration: %d\n", info.duration); */
 
-/*         // Play music */
-/*         EarwaxChunk chunk; */
-/*         while (earwax_spit(ctx, &chunk)) { */
-/*             printf("%d / %d\n", chunk.time, info.duration); */
-/*             ao_play(device, chunk.data, chunk.size); */
+/*         if (ctx != NULL) { */
+/*             // Ao stuff */
+/*             ao_initialize(); */
+/*             ao_device *device; */
+/*             ao_sample_format format; */
+/*             int default_driver = ao_default_driver_id(); */
+/*             memset(&format, 0, sizeof(format)); */
+
+/*             format.bits = 16; */
+/*             format.channels = 2; */
+/*             format.rate = 44100; */
+/*             format.byte_format = AO_FMT_NATIVE; */
+/*             device = ao_open_live(default_driver, &format, NULL); */
+
+/*             // Play music */
+/*             EarwaxChunk chunk; */
+/*             while (earwax_spit(ctx, &chunk)) { */
+/*                 printf("%d / %d\n", chunk.time, info.duration); */
+/*                 ao_play(device, chunk.data, chunk.size); */
+/*             } */
+
+/*             ao_close(device); */
+/*             ao_shutdown(); */
 /*         } */
-
-/*         ao_close(device); */
-/*         ao_shutdown(); */
 
 /*         earwax_drop(&ctx); */
 /*     } */

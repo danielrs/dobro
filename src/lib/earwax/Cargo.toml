@@ -1,6 +1,6 @@
 [package]
 name = "earwax"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 build = "build.rs"
 
