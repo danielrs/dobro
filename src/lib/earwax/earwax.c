@@ -313,7 +313,7 @@ int earwax_spit(EarwaxContext* ctx, EarwaxChunk* chunk) {
             // Next frame.
             return next_chunk(ctx, chunk);
         }
-        else if (ctx->packet.size > 0) {
+        else if (ctx->packet.size > 0 && bytes > 0) {
             // Still processing the packet.
             return earwax_spit(ctx, chunk);
         }
