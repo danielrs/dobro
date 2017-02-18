@@ -3,7 +3,6 @@
 //! **Becareful**, this example is still too simple. It doesn't handle reconnection
 //! to pandora when credentials expire.
 
-extern crate rpassword;
 extern crate ncurses;
 
 extern crate ao;
