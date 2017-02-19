@@ -80,14 +80,13 @@ impl State for StationScreen {
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        // If status of player is not stopped go to station select screen
-        if ctx.player().is_shutdown() {
-            return Trans::Push(Box::new(StationSelectScreen::new()));
-        }
-
         if let Some(status) = ctx.player().next_status() {
             match status {
-                PlayerStatus::Start(station) => {
+                PlayerStatus::Standby => {
+                    return Trans::Push(Box::new(StationSelectScreen::new()));
+                },
+
+                PlayerStatus::Started(station) => {
                     nc::printw("Type '?' for help.\n");
                     nc::attron(nc::A_BOLD());
                     nc::printw(&format!("Station \"{}\"\n", station.station_name));
@@ -99,21 +98,25 @@ impl State for StationScreen {
                     nc::printw("Fetching playlist...");
                     nc::printw("\n\n");
                 },
+
                 PlayerStatus::Playing(track) => {
                     mvrel(-2, 0);
                     Self::print_song("Playing", &track);
                     Self::print_progress(ctx);
+                },
+                PlayerStatus::Finished(track) => {
+                    mvrel(-2, 0);
+                    Self::print_song("Finished", &track);
+                    nc::printw("\n\n");
                 },
                 PlayerStatus::Paused(track) => {
                     mvrel(-2, 0);
                     Self::print_song("Paused", &track);
                     Self::print_progress(ctx);
                 },
-                PlayerStatus::Stopped(track) => {
-                    mvrel(-2, 0);
-                    Self::print_song("Finished", &track);
-                    nc::printw("\n\n");
-                },
+
+                PlayerStatus::Shutdown => {
+                }
 
                 _ => (),
             }

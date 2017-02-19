@@ -13,38 +13,197 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 pub struct Player {
     #[allow(dead_code)]
     ao: ao::Ao,
-    pandora: Arc<Pandora>,
     player_handle: Option<JoinHandle<()>>,
 
     // Player state.
     state: Arc<Mutex<PlayerState>>,
-    pause_pair: Arc<(Mutex<bool>, Condvar)>,
 
     // Sender for notifying the player thread of different actions.
     // Receiver for getting player status.
-    sender: Option<Sender<PlayerAction>>,
-    receiver: Option<Receiver<PlayerStatus>>,
+    sender: Sender<PlayerAction>,
+    receiver: Receiver<PlayerStatus>,
 }
 
 impl Drop for Player {
     fn drop(&mut self) {
-        self.stop();
+        // Thread needs to be running to receive a message
+        // so we need to unpause it.
+        self.unpause();
+
+        // Notifies the thread to exit.
+        self.sender.send(PlayerAction::Exit).unwrap();
+
+        // Waits for the thread to stop.
+        if let Some(player_handle) = self.player_handle.take() {
+            player_handle.join().unwrap();
+        }
     }
 }
 
 impl Player {
     /// Creates a new Player.
     pub fn new(pandora: &Arc<Pandora>) -> Self {
+        // Initialize AO before anything else.
+        let ao = ao::Ao::new();
+
+        let main_state = Arc::new(Mutex::new(PlayerState::new()));
+        let main_pause_pair: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
+
+        let (external_sender, receiver) = channel();
+        let (sender, external_receiver) = channel();
+        let (event_sender, event_receiver) = channel();
+
+        // Thread is dedicated to receive the events from the main thread and
+        // forward player events to the player thread.
+        let event_handle = {
+            let state = main_state.clone();
+            let pause_pair = main_pause_pair.clone();
+            let sender = sender.clone();
+            thread::Builder::new().name("event".to_string()).spawn(move || {
+                while let Ok(action) = receiver.recv() {
+                    match action {
+                        PlayerAction::Pause => {
+                            let &(ref lock, _) = &*pause_pair;
+                            let mut paused = lock.lock().unwrap();
+                            *paused = true;
+                        },
+                        PlayerAction::Unpause => {
+                            let &(ref lock, ref cvar) = &*pause_pair;
+                            let mut paused = lock.lock().unwrap();
+                            *paused = false;
+                            cvar.notify_one();
+                        },
+
+                        PlayerAction::Report => {
+                            sender.send(state.lock().unwrap().status.clone()).unwrap();
+                        },
+
+                        PlayerAction::Exit => {
+                            event_sender.send(PlayerAction::Exit).unwrap();
+                            break;
+                        },
+
+                        action => {
+                            event_sender.send(action).unwrap();
+                        }
+                    }
+                }
+            }).unwrap()
+        };
+
+        // Player thread, it fetches songs from the given stations and receives
+        // events from the event thread.
+        let pandora = pandora.clone();
+        let state = main_state.clone();
+        let pause_pair = main_pause_pair.clone();
+        let player_handle = thread::Builder::new().name("player".to_string()).spawn(move || {
+            let driver = ao::Driver::new().unwrap();
+
+            let set_status = |status: PlayerStatus| {
+                state.lock().unwrap().status = status.clone();
+                sender.send(status).unwrap();
+            };
+
+            let mut current_station = None;
+            'main_loop: loop {
+
+                // Stand-by, waiting to play a station.
+                if current_station.is_none() {
+                    set_status(PlayerStatus::Standby);
+                    while let Ok(action) = event_receiver.recv() {
+                        match action {
+                            PlayerAction::Play(new_station) => {
+                                current_station = Some(new_station);
+                                break;
+                            },
+                            PlayerAction::Exit => break 'main_loop,
+                            _ => (),
+                        }
+                    }
+                }
+
+                // Playing a station.
+                if let Some(ref station) = current_station.clone() {
+                    state.lock().unwrap().station = Some(station.clone());
+                    set_status(PlayerStatus::Started(station.clone()));
+
+                    'station_loop: while let Ok(tracklist) = {
+                        set_status(PlayerStatus::Fetching(station.clone()));
+                        pandora.stations().playlist(station).list()
+                    } {
+                        for track in tracklist {
+                            if track.is_ad() { continue; }
+
+                            state.lock().unwrap().track = Some(track.clone());
+                            set_status(PlayerStatus::Playing(track.clone()));
+
+                            if let Some(ref audio) = track.track_audio {
+                                if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
+                                    // TODO: Format should replicate earwax format.
+                                    let format = ao::Format::new();
+                                    let device = ao::Device::new(&driver, &format, None).unwrap();
+                                    let duration = earwax.info().duration.seconds();
+
+                                    while let Some(chunk) = earwax.spit() {
+                                        state.lock().unwrap().progress = Some((chunk.time.seconds(), duration));
+
+                                        // Pauses.
+                                        let &(ref lock, ref cvar) = &*pause_pair;
+                                        let mut paused = lock.lock().unwrap();
+                                        while *paused {
+                                            set_status(PlayerStatus::Paused(track.clone()));
+                                            paused = cvar.wait(paused).unwrap();
+                                            set_status(PlayerStatus::Playing(track.clone()));
+                                        }
+
+                                        // Message handler.
+                                        if let Ok(action) = event_receiver.try_recv() {
+                                            match action {
+                                                PlayerAction::Play(new_station) => {
+                                                    current_station = Some(new_station);
+                                                    set_status(PlayerStatus::Finished(track.clone()));
+                                                    break 'station_loop;
+                                                },
+                                                PlayerAction::Stop => {
+                                                    set_status(PlayerStatus::Finished(track.clone()));
+                                                    break 'station_loop;
+                                                },
+
+                                                PlayerAction::Skip => break,
+
+                                                PlayerAction::Exit => {
+                                                    set_status(PlayerStatus::Finished(track.clone()));
+                                                    set_status(PlayerStatus::Stopped(station.clone()));
+                                                    break 'main_loop;
+                                                }
+                                                _ => (),
+                                            }
+                                        }
+
+                                        // Plays chunk.
+                                        device.play(chunk.data);
+                                    }
+                                    set_status(PlayerStatus::Finished(track.clone()));
+                                }
+                            }
+                        }
+                    }
+                    set_status(PlayerStatus::Stopped(station.clone()));
+                }
+            } // 'main-loop
+            *state.lock().unwrap() = PlayerState::new();
+            set_status(PlayerStatus::Shutdown);
+            event_handle.join().unwrap();
+        }).unwrap();
+
         Player {
-            ao: ao::Ao::new(),
-            pandora: pandora.clone(),
-            player_handle: None,
+            ao: ao,
+            player_handle: Some(player_handle),
 
-            state: Arc::new(Mutex::new(PlayerState::new())),
-            pause_pair: Arc::new((Mutex::new(false), Condvar::new())),
+            state: main_state,
 
-            sender: None,
-            receiver: None,
+            sender: external_sender,
+            receiver: external_receiver,
         }
     }
 
@@ -54,185 +213,42 @@ impl Player {
         self.state.lock().unwrap()
     }
 
-    /// Starts playing the given station in a separate thread; stopping
-    /// any previously started threads.
+    //
+    // Player control functions
+    //
+
+    /// Starts playing the given station.
     pub fn play(&mut self, station: StationItem) {
-        // Stops any previously running thread.
-        self.stop();
+        self.sender.send(PlayerAction::Play(station)).unwrap();
 
-        let (external_sender, receiver) = channel();
-        let (sender, external_receiver) = channel();
-        let (event_sender, event_receiver) = channel();
-
-        self.state.lock().unwrap().station = Some(station.clone());
-
-        // Receiver and sender for communicating with main thread.
-        self.sender = Some(external_sender);
-        self.receiver = Some(external_receiver);
-
-        // Thread is dedicated to receive the events from the main thread and
-        // forward player events to the player thread.
-        let event_handle = {
-            let state = self.state.clone();
-            let sender = sender.clone();
-            thread::spawn(move || {
-                while let Ok(action) = receiver.recv() {
-                    match action {
-                        PlayerAction::Report => {
-                            sender.send(state.lock().unwrap().status.clone()).unwrap();
-                        },
-                        PlayerAction::Stop => {
-                            event_sender.send(PlayerAction::Stop).unwrap();
-                            break;
-                        },
-                        action => {
-                            event_sender.send(action).unwrap();
-                        }
-                    }
-                }
-            })
-        };
-
-        // Channel for checking initialization of thread.
-        let (start_sender, start_receiver) = channel();
-
-        // Player thread, it fetches songs from the given stations and receives
-        // events from the event thread.
-        let pandora = self.pandora.clone();
-        let state = self.state.clone();
-        let pause_pair = self.pause_pair.clone();
-        self.player_handle = Some(thread::spawn(move || {
-            let driver = ao::Driver::new().unwrap();
-
-            let set_status = |status: PlayerStatus| {
-                state.lock().unwrap().status = status.clone();
-                sender.send(status).unwrap();
-            };
-
-            // Set start status and notify the main thread so the parent process can
-            // return the function.
-            set_status(PlayerStatus::Start(station.clone()));
-            let _ = start_sender.send(());
-
-            'track_loop: while let Ok(tracklist) = {
-                set_status(PlayerStatus::Fetching(station.clone()));
-                pandora.stations().playlist(&station).list()
-            } {
-                for track in tracklist {
-                    if track.is_ad() { continue; }
-
-                    state.lock().unwrap().track = Some(track.clone());
-                    set_status(PlayerStatus::Playing(track.clone()));
-                    if let Some(ref audio) = track.track_audio {
-                        if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
-                            // TODO: Format should replicate earwax format.
-                            let format = ao::Format::new();
-                            let device = ao::Device::new(&driver, &format, None).unwrap();
-                            let duration = earwax.info().duration.seconds();
-
-                            while let Some(chunk) = earwax.spit() {
-                                state.lock().unwrap().progress = Some((chunk.time.seconds(), duration));
-                                // Pauses.
-                                let &(ref lock, ref cvar) = &*pause_pair;
-                                let mut paused = lock.lock().unwrap();
-                                while *paused {
-                                    set_status(PlayerStatus::Paused(track.clone()));
-                                    paused = cvar.wait(paused).unwrap();
-                                    set_status(PlayerStatus::Playing(track.clone()));
-                                }
-
-                                // Message handler.
-                                 if let Ok(action) = event_receiver.try_recv() {
-                                     match action {
-                                         PlayerAction::Skip => break,
-                                         PlayerAction::Stop => {
-                                            set_status(PlayerStatus::Stopped(track.clone()));
-                                            break 'track_loop;
-                                         }
-                                         _ => (),
-                                     }
-                                 }
-
-                                 // Plays chunk.
-                                 device.play(chunk.data);
-                            }
-                            set_status(PlayerStatus::Stopped(track.clone()));
-                        }
-                    }
-                }
-            }
-            set_status(PlayerStatus::Shutdown);
-            event_handle.join().unwrap();
-        }));
-
-        // Block until player thread changes status to start.
-        let _ = start_receiver.recv();
     }
 
-    /// Requests the player to send an event reporting its current status.
-    pub fn report(&self) {
-        if let Some(ref sender) = self.sender {
-            sender.send(PlayerAction::Report).unwrap();
-        }
+    /// Stops the current station.
+    #[allow(unused_must_use)]
+    pub fn stop(&mut self) {
+        self.sender.send(PlayerAction::Stop).unwrap();
+    }
+
+    /// Pauses the audio thread.
+    pub fn pause(&mut self) {
+        self.sender.send(PlayerAction::Pause).unwrap();;
+    }
+
+    /// Unpauses the audio thread.
+    pub fn unpause(&mut self) {
+        self.sender.send(PlayerAction::Unpause).unwrap();
     }
 
     /// Skips the current track (if any is playing).
     pub fn skip(&mut self) {
         self.unpause();
-
-        if let Some(ref sender) = self.sender {
-            sender.send(PlayerAction::Skip).unwrap();
-        }
-    }
-
-    /// Stops the audio thread.
-    #[allow(unused_must_use)]
-    pub fn stop(&mut self) {
-        // Thread needs to be running to receive a message
-        // so we need to unpause it.
-        self.unpause();
-
-        // Notifies the thread to stop.
-        if let Some(ref sender) = self.sender {
-            sender.send(PlayerAction::Stop);
-        }
-
-        // Waits for the thread to stop.
-        if let Some(player_handle) = self.player_handle.take() {
-            player_handle.join().unwrap();
-        }
-
-        self.player_handle = None;
-        *self.state.lock().unwrap() = PlayerState::new();
-        self.sender = None;
-        self.receiver = None;
-    }
-
-    /// Pauses the audio thread.
-    pub fn pause(&mut self) {
-        let &(ref lock, _) = &*self.pause_pair;
-        let mut paused = lock.lock().unwrap();
-        *paused = true;
-    }
-
-    /// Unpauses the audio thread.
-    pub fn unpause(&mut self) {
-        let &(ref lock, ref cvar) = &*self.pause_pair;
-        let mut paused = lock.lock().unwrap();
-        *paused = false;
-        cvar.notify_one();
+        self.sender.send(PlayerAction::Skip).unwrap();
     }
 
     /// Toggles pause / unpause.
     #[allow(unused_assignments)]
     pub fn toggle_pause(&mut self) {
-        let mut is_paused = false;
-        {
-            let &(ref lock, _) = &*self.pause_pair;
-            is_paused = *lock.lock().unwrap();
-        }
-
-        if is_paused {
+        if self.is_paused() {
             self.unpause();
         }
         else {
@@ -240,9 +256,28 @@ impl Player {
         }
     }
 
-    /// Returns true if the player is shutdown.
-    pub fn is_shutdown(&self) -> bool {
-        self.state.lock().unwrap().status.is_shutdown()
+    /// Requests the player to send an event reporting its current status.
+    pub fn report(&self) {
+        self.sender.send(PlayerAction::Report).unwrap();
+    }
+
+    //
+    // PLayer state functions
+    //
+
+    /// Returns true if the player is starting.
+    pub fn is_started(&self) -> bool {
+        self.state.lock().unwrap().status.is_started()
+    }
+
+    /// Returns true if the player is stopped (waiting for a Play action).
+    pub fn is_stopped(&self) -> bool {
+        self.state.lock().unwrap().status.is_stopped()
+    }
+
+    /// Returns true if the player is fetching tracks.
+    pub fn is_fetching(&self) -> bool {
+        self.state.lock().unwrap().status.is_fetching()
     }
 
     /// Returns true if the player is playing audio.
@@ -250,14 +285,19 @@ impl Player {
         self.state.lock().unwrap().status.is_playing()
     }
 
-    /// Returns true if the player is stopped.
-    pub fn is_stopped(&self) -> bool {
-        self.state.lock().unwrap().status.is_stopped()
+    /// Returns true if the player has just finished audio.
+    pub fn is_finished(&self) -> bool {
+        self.state.lock().unwrap().status.is_finished()
     }
 
     /// Returns true if the player is paused.
     pub fn is_paused(&self) -> bool {
         self.state.lock().unwrap().status.is_paused()
+    }
+
+    /// Returns true if the player is shutdown.
+    pub fn is_shutdown(&self) -> bool {
+        self.state.lock().unwrap().status.is_shutdown()
     }
 
     /// Returns the most recent status from the player.
@@ -268,16 +308,15 @@ impl Player {
     /// * None when the thread is not running and there are no recent statuses.
     pub fn next_status(&self) -> Option<PlayerStatus> {
         let mut status = None;
-        if let Some(ref receiver) = self.receiver {
-            if let Ok(s) = receiver.try_recv() {
-                status = Some(s);
-            }
+        if let Ok(s) = self.receiver.try_recv() {
+            status = Some(s);
         }
         status
     }
 }
 
 /// Container for the player state.
+#[derive(Debug)]
 pub struct PlayerState {
     pub station: Option<StationItem>,
     pub track: Option<Track>,
@@ -299,27 +338,58 @@ impl PlayerState {
 
 /// Enumeration type for sending player actions.
 pub enum PlayerAction {
-    Report,
-    Skip,
+    // Station related actions.
+    Play(StationItem),
     Stop,
+
+    // Track related actions.
+    Pause,
+    Unpause,
+    Skip,
+
+    // Misc actions.
+    Report,
+    Exit,
 }
 
-/// Enumeration type for showing player status.
+/// Enumeration type for showing player status to the user.
 #[derive(Debug, Clone)]
 pub enum PlayerStatus {
-    Start(StationItem),
-    Fetching(StationItem),
-    Shutdown,
+    // Station-related statuses.
+    Standby,
 
+    // Station-related statuses.
+    Started(StationItem),
+    Stopped(StationItem),
+    Fetching(StationItem),
+
+    // Track related statuses.
     Playing(Track),
+    Finished(Track),
     Paused(Track),
-    Stopped(Track),
+
+    // Player not running.
+    Shutdown,
 }
 
 impl PlayerStatus {
-    pub fn is_shutdown(&self) -> bool {
+    pub fn is_started(&self) -> bool {
         match *self {
-            PlayerStatus::Shutdown => true,
+            PlayerStatus::Started(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        match *self {
+            PlayerStatus::Stopped(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_fetching(&self) -> bool {
+        match *self {
+            PlayerStatus::Fetching(_) => true,
             _ => false,
         }
     }
@@ -331,6 +401,13 @@ impl PlayerStatus {
         }
     }
 
+    pub fn is_finished(&self) -> bool {
+        match *self {
+            PlayerStatus::Finished(_) => true,
+            _ => false,
+        }
+    }
+
     pub fn is_paused(&self) -> bool {
         match *self {
             PlayerStatus::Paused(_) => true,
@@ -338,9 +415,9 @@ impl PlayerStatus {
         }
     }
 
-    pub fn is_stopped(&self) -> bool {
+    pub fn is_shutdown(&self) -> bool {
         match *self {
-            PlayerStatus::Stopped(_) => true,
+            PlayerStatus::Shutdown => true,
             _ => false,
         }
     }
