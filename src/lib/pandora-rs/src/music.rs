@@ -82,7 +82,7 @@ pub struct SearchResults {
 
 impl SearchResults {
     /// Returns true if near matches are available.
-    pub fn nearMatchesAvailable(&self) -> bool {
+    pub fn near_matches_available(&self) -> bool {
         self.near_matches_available
     }
 

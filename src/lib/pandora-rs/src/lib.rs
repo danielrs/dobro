@@ -26,7 +26,7 @@ pub mod stations;
 
 pub use auth::Credentials;
 pub use playlist::Track;
-pub use stations::StationItem;
+pub use stations::Station;
 
 //////////
 // Module

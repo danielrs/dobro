@@ -43,12 +43,11 @@ impl StationScreen {
                      status,
                      track.song_name.as_ref().unwrap_or(&"Unknown".to_owned()),
                      track.artist_name.as_ref().unwrap_or(&"Unknown".to_owned())));
-        nc::printw(
-            &format!("  {}\n", if loved { "<3" } else { " " }));
+        nc::printw(&format!("{}\n", if loved { "  <3" } else { "" }));
     }
 
     fn print_progress(ctx: &mut Dobro) {
-        if let Some((current, total)) = ctx.player().state().progress {
+        if let Some((current, total)) = ctx.player().state().progress() {
             let total_mins = total / 60;
             let total_secs = total % 60;
             let mins = current / 60;
@@ -68,7 +67,7 @@ impl StationScreen {
 
 impl State for StationScreen {
     fn resume(&mut self, ctx: &mut Dobro) {
-        let status = ctx.player().state().status.clone();
+        let status = ctx.player().state().status().clone();
 
         match status {
             PlayerStatus::Playing(_) | PlayerStatus::Paused(_) => {
@@ -93,6 +92,9 @@ impl State for StationScreen {
                     nc::attroff(nc::A_BOLD());
                     nc::printw("\n\n");
                 },
+                PlayerStatus::Stopped(_) => {
+                    mvrel(-2, 0);
+                },
                 PlayerStatus::Fetching(_) => {
                     mvrel(-2, 0);
                     nc::printw("Fetching playlist...");
@@ -114,9 +116,6 @@ impl State for StationScreen {
                     Self::print_song("Paused", &track);
                     Self::print_progress(ctx);
                 },
-
-                PlayerStatus::Shutdown => {
-                }
 
                 _ => (),
             }

@@ -20,7 +20,7 @@ impl<'a> Stations<'a> {
     }
 
     /// Lists the user stations.
-    pub fn list(&self) -> Result<Vec<StationItem>> {
+    pub fn list(&self) -> Result<Vec<Station>> {
         let stations = try!(self.pandora.post::<StationList>(
             Method::UserGetStationList,
             None
@@ -29,7 +29,7 @@ impl<'a> Stations<'a> {
     }
 
     /// Creates a new station.
-    pub fn create<T>(&self, music_token: &T) -> Result<StationItem> where T: ToMusicToken {
+    pub fn create<T>(&self, music_token: &T) -> Result<Station> where T: ToMusicToken {
         self.pandora.post(
             Method::StationCreateStation,
             Some(serde_json::to_value(CreateStationRequest {
@@ -41,7 +41,7 @@ impl<'a> Stations<'a> {
     }
 
     /// Renames a station.
-    pub fn rename<T>(&self, station: &T, station_name: &str) -> Result<StationItem>
+    pub fn rename<T>(&self, station: &T, station_name: &str) -> Result<Station>
     where T: ToStationToken {
         self.pandora.post(
             Method::StationRenameStation,
@@ -115,14 +115,14 @@ pub trait ToStationToken {
 
 /// Single item for StationList.
 #[derive(Debug, Clone, Deserialize)]
-pub struct StationItem {
+pub struct Station {
     #[serde(rename="stationId")]
     pub station_id: String,
     #[serde(rename="stationName")]
     pub station_name: String,
 }
 
-impl ToStationToken for StationItem {
+impl ToStationToken for Station {
     fn to_station_token(&self) -> String {
         self.station_id.clone()
     }
@@ -131,7 +131,7 @@ impl ToStationToken for StationItem {
 /// List of stations.
 #[derive(Debug, Deserialize)]
 struct StationList {
-    pub stations: Vec<StationItem>,
+    pub stations: Vec<Station>,
     pub checksum: String,
 }
 
@@ -143,7 +143,7 @@ pub struct StationListChecksum {
 
 /// Extended station information.
 #[derive(Debug, Deserialize)]
-pub struct Station {
+pub struct ExtendedStation {
     #[serde(rename="stationId")]
     pub station_id: String,
     #[serde(rename="stationName")]

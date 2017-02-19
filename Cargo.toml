@@ -1,6 +1,6 @@
 [package]
 name = "dobro"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]

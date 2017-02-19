@@ -14,7 +14,7 @@ impl StationDeleteScreen {
 
 impl State for StationDeleteScreen {
     fn start(&mut self, ctx: &mut Dobro) {
-        let station = ctx.player().state().station.clone();
+        let station = ctx.player().state().station().clone();
         if let Some(station) = station {
             nc::printw(&format!("Deleting \"{}\"... ", station.station_name));
             nc::refresh();

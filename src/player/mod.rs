@@ -1,7 +1,11 @@
+mod state;
+
+pub use self::state::*;
+
 use ao;
 use earwax::Earwax;
 
-use pandora::{Pandora, StationItem, Track};
+use pandora::{Pandora, Station};
 
 use std::thread;
 use std::thread::JoinHandle;
@@ -75,7 +79,7 @@ impl Player {
                         },
 
                         PlayerAction::Report => {
-                            sender.send(state.lock().unwrap().status.clone()).unwrap();
+                            sender.send(state.lock().unwrap().status().clone()).unwrap();
                         },
 
                         PlayerAction::Exit => {
@@ -91,8 +95,9 @@ impl Player {
             }).unwrap()
         };
 
-        // Player thread, it fetches songs from the given stations and receives
-        // events from the event thread.
+        // The 'player' thread runs while the Player is in scope. It plays the given station
+        // and takes care of fetching the tracks. All the events this thread receives are
+        // the events forwarded from the 'event' thread.
         let pandora = pandora.clone();
         let state = main_state.clone();
         let pause_pair = main_pause_pair.clone();
@@ -100,7 +105,7 @@ impl Player {
             let driver = ao::Driver::new().unwrap();
 
             let set_status = |status: PlayerStatus| {
-                state.lock().unwrap().status = status.clone();
+                state.lock().unwrap().set_status(status.clone());
                 sender.send(status).unwrap();
             };
 
@@ -124,7 +129,7 @@ impl Player {
 
                 // Playing a station.
                 if let Some(ref station) = current_station.clone() {
-                    state.lock().unwrap().station = Some(station.clone());
+                    state.lock().unwrap().set_station(station.clone());
                     set_status(PlayerStatus::Started(station.clone()));
 
                     'station_loop: while let Ok(tracklist) = {
@@ -134,7 +139,7 @@ impl Player {
                         for track in tracklist {
                             if track.is_ad() { continue; }
 
-                            state.lock().unwrap().track = Some(track.clone());
+                            state.lock().unwrap().set_track(track.clone());
                             set_status(PlayerStatus::Playing(track.clone()));
 
                             if let Some(ref audio) = track.track_audio {
@@ -145,7 +150,7 @@ impl Player {
                                     let duration = earwax.info().duration.seconds();
 
                                     while let Some(chunk) = earwax.spit() {
-                                        state.lock().unwrap().progress = Some((chunk.time.seconds(), duration));
+                                        state.lock().unwrap().set_progress(chunk.time.seconds(), duration);
 
                                         // Pauses.
                                         let &(ref lock, ref cvar) = &*pause_pair;
@@ -165,6 +170,7 @@ impl Player {
                                                     break 'station_loop;
                                                 },
                                                 PlayerAction::Stop => {
+                                                    current_station = None;
                                                     set_status(PlayerStatus::Finished(track.clone()));
                                                     break 'station_loop;
                                                 },
@@ -188,6 +194,7 @@ impl Player {
                             }
                         }
                     }
+                    state.lock().unwrap().clear_info();
                     set_status(PlayerStatus::Stopped(station.clone()));
                 }
             } // 'main-loop
@@ -218,13 +225,11 @@ impl Player {
     //
 
     /// Starts playing the given station.
-    pub fn play(&mut self, station: StationItem) {
+    pub fn play(&mut self, station: Station) {
         self.sender.send(PlayerAction::Play(station)).unwrap();
-
     }
 
     /// Stops the current station.
-    #[allow(unused_must_use)]
     pub fn stop(&mut self) {
         self.sender.send(PlayerAction::Stop).unwrap();
     }
@@ -246,7 +251,6 @@ impl Player {
     }
 
     /// Toggles pause / unpause.
-    #[allow(unused_assignments)]
     pub fn toggle_pause(&mut self) {
         if self.is_paused() {
             self.unpause();
@@ -267,37 +271,37 @@ impl Player {
 
     /// Returns true if the player is starting.
     pub fn is_started(&self) -> bool {
-        self.state.lock().unwrap().status.is_started()
+        self.state.lock().unwrap().status().is_started()
     }
 
     /// Returns true if the player is stopped (waiting for a Play action).
     pub fn is_stopped(&self) -> bool {
-        self.state.lock().unwrap().status.is_stopped()
+        self.state.lock().unwrap().status().is_stopped()
     }
 
     /// Returns true if the player is fetching tracks.
     pub fn is_fetching(&self) -> bool {
-        self.state.lock().unwrap().status.is_fetching()
+        self.state.lock().unwrap().status().is_fetching()
     }
 
     /// Returns true if the player is playing audio.
     pub fn is_playing(&self) -> bool {
-        self.state.lock().unwrap().status.is_playing()
+        self.state.lock().unwrap().status().is_playing()
     }
 
     /// Returns true if the player has just finished audio.
     pub fn is_finished(&self) -> bool {
-        self.state.lock().unwrap().status.is_finished()
+        self.state.lock().unwrap().status().is_finished()
     }
 
     /// Returns true if the player is paused.
     pub fn is_paused(&self) -> bool {
-        self.state.lock().unwrap().status.is_paused()
+        self.state.lock().unwrap().status().is_paused()
     }
 
     /// Returns true if the player is shutdown.
     pub fn is_shutdown(&self) -> bool {
-        self.state.lock().unwrap().status.is_shutdown()
+        self.state.lock().unwrap().status().is_shutdown()
     }
 
     /// Returns the most recent status from the player.
@@ -315,31 +319,10 @@ impl Player {
     }
 }
 
-/// Container for the player state.
-#[derive(Debug)]
-pub struct PlayerState {
-    pub station: Option<StationItem>,
-    pub track: Option<Track>,
-    pub progress: Option<(i64, i64)>,
-    pub status: PlayerStatus,
-}
-
-impl PlayerState {
-    /// Returns a new PlayerState.
-    pub fn new() -> Self {
-        PlayerState {
-            station: None,
-            track: None,
-            progress: None,
-            status: PlayerStatus::Shutdown,
-        }
-    }
-}
-
 /// Enumeration type for sending player actions.
 pub enum PlayerAction {
     // Station related actions.
-    Play(StationItem),
+    Play(Station),
     Stop,
 
     // Track related actions.
@@ -350,75 +333,4 @@ pub enum PlayerAction {
     // Misc actions.
     Report,
     Exit,
-}
-
-/// Enumeration type for showing player status to the user.
-#[derive(Debug, Clone)]
-pub enum PlayerStatus {
-    // Station-related statuses.
-    Standby,
-
-    // Station-related statuses.
-    Started(StationItem),
-    Stopped(StationItem),
-    Fetching(StationItem),
-
-    // Track related statuses.
-    Playing(Track),
-    Finished(Track),
-    Paused(Track),
-
-    // Player not running.
-    Shutdown,
-}
-
-impl PlayerStatus {
-    pub fn is_started(&self) -> bool {
-        match *self {
-            PlayerStatus::Started(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_stopped(&self) -> bool {
-        match *self {
-            PlayerStatus::Stopped(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_fetching(&self) -> bool {
-        match *self {
-            PlayerStatus::Fetching(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_playing(&self) -> bool {
-        match *self {
-            PlayerStatus::Playing(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_finished(&self) -> bool {
-        match *self {
-            PlayerStatus::Finished(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_paused(&self) -> bool {
-        match *self {
-            PlayerStatus::Paused(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_shutdown(&self) -> bool {
-        match *self {
-            PlayerStatus::Shutdown => true,
-            _ => false,
-        }
-    }
 }

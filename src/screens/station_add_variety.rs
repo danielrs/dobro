@@ -21,7 +21,7 @@ impl StationMusicScreen for StationAddVarietyScreen {
     }
 
     fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T) where T: ToMusicToken {
-        let station = ctx.player().state().station.clone();
+        let station = ctx.player().state().station();
         if let Some(ref station) = station {
             nc::printw(&format!("Adding variety to \"{}\"... ", station.station_name));
             nc::refresh();
