@@ -1,3 +1,5 @@
+[![Clippy Linting Result](https://clippy.bashy.io/github/danielrs/dobro/master/badge.svg)](https://clippy.bashy.io/github/danielrs/dobro/master/log)
+
 # dobro
 Unofficial Pandora terminal client written in Rust.
 
