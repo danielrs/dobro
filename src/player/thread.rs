@@ -68,8 +68,6 @@ pub fn spawn_player(
     // The 'player' thread runs while the Player is in scope. It plays the given station
     // and takes care of fetching the tracks. All the events this thread receives are
     // the events forwarded from the 'event' thread.
-    //
-    //
     let pandora = pandora.clone();
     let state = main_state.clone();
     let pause_pair = main_pause_pair.clone();
@@ -96,6 +94,7 @@ pub fn spawn_player(
             }
         }
 
+        // TODO: Correct handling of event thread if we return here.
         let driver = try_or!(ao::Driver::new(), return);
 
         let mut current_station = None;
