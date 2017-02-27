@@ -1,10 +1,12 @@
 extern crate libc;
 
+pub mod error;
 mod ffi;
+
+use error::Error;
 
 use std::ffi::CString;
 use std::ptr;
-
 use libc::{c_int};
 
 /// Opaque struct for Ao handling. Make sure only one instance of this
@@ -39,21 +41,29 @@ pub struct Driver {
 
 impl Driver {
     /// Creates and returns (if-any) the default driver.
-    pub fn new() -> Option<Self> {
+    pub fn new() -> Result<Self, Error> {
         let driver_id = unsafe { ffi::ao_default_driver_id() };
-        if driver_id >= 0 { Some(Driver { driver_id: driver_id }) }
-        else { None }
+        if driver_id >= 0 {
+            Ok(Driver { driver_id: driver_id })
+        }
+        else {
+            Err(Error::from_errno())
+        }
     }
 
     /// Tries to find a driver with the given name.
     ///
     /// # Panics
     /// If the given name contains inner zero bytes.
-    pub fn with_name(short_name: &str) -> Option<Self> {
+    pub fn with_name(short_name: &str) -> Result<Self, Error> {
         let short_name = CString::new(short_name).unwrap();
         let driver_id = unsafe { ffi::ao_driver_id(short_name.as_ptr()) };
-        if driver_id >= 0 { Some(Driver { driver_id: driver_id }) }
-        else { None }
+        if driver_id >= 0 {
+            Ok(Driver { driver_id: driver_id })
+        }
+        else {
+            Err(Error::from_errno())
+        }
     }
 
     /// Returns the driver id.
@@ -69,7 +79,8 @@ pub struct Device {
 
 impl Device {
     /// Creates a new device using the given driver, format, and settings.
-    pub fn new(driver: &Driver, format: &Format, settings: Option<&Settings>) -> Option<Self> {
+    pub fn new(driver: &Driver, format: &Format, settings: Option<&Settings>)
+        -> Result<Self, Error> {
         let options = match settings {
             Some(settings) => settings.as_ao_option(),
             None => ptr::null(),
@@ -79,10 +90,10 @@ impl Device {
         };
 
         if ao_device.is_null() {
-            None
+            Err(Error::from_errno())
         }
         else {
-            Some(Device { device: ao_device })
+            Ok(Device { device: ao_device })
         }
     }
 
@@ -191,4 +202,3 @@ pub enum ByteFormat {
     Big = 2,
     Native = 4,
 }
-

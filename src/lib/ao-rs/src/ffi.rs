@@ -28,8 +28,6 @@ pub struct AoOption {
 
 #[link(name="ao")]
 extern {
-    static mut errno: c_int;
-
     pub fn ao_initialize();
     pub fn ao_shutdown();
 

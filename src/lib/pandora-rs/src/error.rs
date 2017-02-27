@@ -66,7 +66,7 @@ impl From<HttpError> for Error {
 /// Pandora error codes.
 #[derive(Debug)]
 pub enum ApiErrorCode {
-    Unkown,
+    Unknown,
 
     InternalError,
     MaintenanceMode,
@@ -87,7 +87,7 @@ pub enum ApiErrorCode {
     LicensingRestrictions,
     InsufficientConnectivity,
 
-    UnkownMethodName,
+    UnknownMethodName,
     WrongProtocol,
 
     ReadOnlyMode,
@@ -147,7 +147,7 @@ impl From<u32> for ApiErrorCode {
             11 => ApiErrorCode::ApiVersionNotSupported,
             12 => ApiErrorCode::LicensingRestrictions,
             13 => ApiErrorCode::InsufficientConnectivity,
-            14 => ApiErrorCode::UnkownMethodName,
+            14 => ApiErrorCode::UnknownMethodName,
             15 => ApiErrorCode::WrongProtocol,
             1000 => ApiErrorCode::ReadOnlyMode,
             1001 => ApiErrorCode::InvalidAuthToken,
@@ -180,7 +180,7 @@ impl From<u32> for ApiErrorCode {
             1037 => ApiErrorCode::UserAlreadyUserTrial,
             1039 => ApiErrorCode::PlaylistExceeded,
 
-            _ => ApiErrorCode::Unkown,
+            _ => ApiErrorCode::Unknown,
         }
     }
 }

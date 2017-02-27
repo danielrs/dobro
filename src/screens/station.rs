@@ -117,6 +117,10 @@ impl State for StationScreen {
                     Self::print_progress(ctx);
                 },
 
+                PlayerStatus::Error(err) => {
+                    nc::printw(&format!("ERROR: {}\n", err));
+                }
+
                 _ => (),
             }
         }

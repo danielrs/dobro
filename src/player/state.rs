@@ -76,6 +76,9 @@ pub enum PlayerStatus {
     Finished(Track),
     Paused(Track),
 
+    // Error inside thread.
+    Error(String),
+
     // Player not running.
     Shutdown,
 }
@@ -119,6 +122,13 @@ impl PlayerStatus {
     pub fn is_paused(&self) -> bool {
         match *self {
             PlayerStatus::Paused(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_error(&self) -> bool {
+        match *self {
+            PlayerStatus::Error(_) => true,
             _ => false,
         }
     }
