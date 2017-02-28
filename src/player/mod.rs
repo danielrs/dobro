@@ -2,6 +2,7 @@ mod error;
 mod state;
 mod thread;
 
+use self::error::Error;
 pub use self::state::{PlayerState, PlayerStatus};
 use self::thread::spawn_player;
 
@@ -25,7 +26,7 @@ pub struct Player {
     // Sender for notifying the player thread of different actions.
     // Receiver for getting player status.
     sender: Sender<PlayerAction>,
-    receiver: Receiver<PlayerStatus>,
+    receiver: Receiver<Result<PlayerStatus, Error>>,
 }
 
 impl Drop for Player {
@@ -160,15 +161,26 @@ impl Player {
     /// Returns the most recent status from the player.
     ///
     /// # Returns
-    /// * Some(PlayerStatus) when the thread is running and emitting
+    /// * Result(PlayerStatus) when the thread is running and emitting
     /// messages.
-    /// * None when the thread is not running and there are no recent statuses.
-    pub fn next_status(&self) -> Option<PlayerStatus> {
-        let mut status = None;
+    /// * Error(err) when the thread sent an error instead.
+    pub fn next_status(&self) -> Result<PlayerStatus, Error> {
+        self.receiver.recv().unwrap()
+    }
+
+    /// Returns the most recent status from the player without blocking.
+    ///
+    /// # Returns
+    /// * Result(PlayerStatus) when the thread is running and emitting
+    /// messages.
+    /// * Error(err) when the thread sent an error instead.
+    pub fn try_next_status(&self) -> Option<Result<PlayerStatus, Error>> {
         if let Ok(s) = self.receiver.try_recv() {
-            status = Some(s);
+            Some(s)
         }
-        status
+        else {
+            None
+        }
     }
 }
 

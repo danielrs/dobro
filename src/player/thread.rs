@@ -1,3 +1,4 @@
+use super::error::Error;
 use super::PlayerAction;
 use super::state::{PlayerState, PlayerStatus};
 
@@ -5,7 +6,6 @@ use ao;
 use earwax::Earwax;
 use pandora::Pandora;
 
-use std::error::Error;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::{Arc, Mutex, Condvar};
@@ -15,7 +15,7 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 pub fn spawn_player(
     pandora: &Arc<Pandora>,
     main_state: &Arc<Mutex<PlayerState>>,
-    main_sender: Sender<PlayerStatus>,
+    main_sender: Sender<Result<PlayerStatus, Error>>,
     main_receiver: Receiver<PlayerAction>) -> JoinHandle<()> {
 
     // The Condvar used for pausing the player thread.
@@ -49,7 +49,7 @@ pub fn spawn_player(
                     },
 
                     PlayerAction::Report => {
-                        sender.send(state.lock().unwrap().status().clone()).unwrap();
+                        sender.send(Ok(state.lock().unwrap().status().clone())).unwrap();
                     },
 
                     PlayerAction::Exit => {
@@ -77,7 +77,7 @@ pub fn spawn_player(
         /// Sets current player status and sends status event to main thread.
         let set_status = |status: PlayerStatus| {
             state.lock().unwrap().set_status(status.clone());
-            sender.send(status).unwrap();
+            sender.send(Ok(status)).unwrap();
         };
 
         /// This macro tries the given Result, and if an Err is given sends the error using
@@ -87,7 +87,7 @@ pub fn spawn_player(
                 match $e {
                     Ok(val) => val,
                     Err(err) => {
-                        set_status(PlayerStatus::Error(err.description().to_owned()));
+                        sender.send(Err(err.into())).unwrap();
                         $action;
                     }
                 }
@@ -126,15 +126,16 @@ pub fn spawn_player(
 
                     for track in tracklist {
                         if track.is_ad() { continue; }
+
+                        state.lock().unwrap().set_track(track.clone());
+                        set_status(PlayerStatus::Playing(track.clone()));
+
                         if let Some(ref audio) = track.track_audio {
                             if let Ok(mut earwax) = Earwax::new(&audio.high_quality.audio_url) {
                                 // TODO: Format should replicate earwax format.
                                 let format = ao::Format::new();
                                 let device = try_or!(ao::Device::new(&driver, &format, None), continue);
                                 let duration = earwax.info().duration.seconds();
-
-                                state.lock().unwrap().set_track(track.clone());
-                                set_status(PlayerStatus::Playing(track.clone()));
 
                                 while let Some(chunk) = earwax.spit() {
                                     state.lock().unwrap().set_progress(chunk.time.seconds(), duration);

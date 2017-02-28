@@ -79,49 +79,52 @@ impl State for StationScreen {
     }
 
     fn update(&mut self, ctx: &mut Dobro) -> Trans {
-        if let Some(status) = ctx.player().next_status() {
-            match status {
-                PlayerStatus::Standby => {
-                    return Trans::Push(Box::new(StationSelectScreen::new()));
-                },
+        if let Some(mstatus) = ctx.player().try_next_status() {
+            match mstatus {
+                Ok(status) => {
+                    match status {
+                        PlayerStatus::Standby => {
+                            return Trans::Push(Box::new(StationSelectScreen::new()));
+                        },
 
-                PlayerStatus::Started(station) => {
-                    nc::printw("Type '?' for help.\n");
-                    nc::attron(nc::A_BOLD());
-                    nc::printw(&format!("Station \"{}\"\n", station.station_name));
-                    nc::attroff(nc::A_BOLD());
-                    nc::printw("\n\n");
-                },
-                PlayerStatus::Stopped(_) => {
-                    mvrel(-2, 0);
-                },
-                PlayerStatus::Fetching(_) => {
-                    mvrel(-2, 0);
-                    nc::printw("Fetching playlist...");
-                    nc::printw("\n\n");
-                },
+                        PlayerStatus::Started(station) => {
+                            nc::printw("Type '?' for help.\n");
+                            nc::attron(nc::A_BOLD());
+                            nc::printw(&format!("Station \"{}\"\n", station.station_name));
+                            nc::attroff(nc::A_BOLD());
+                            nc::printw("\n\n");
+                        },
+                        PlayerStatus::Stopped(_) => {
+                            mvrel(-2, 0);
+                        },
+                        PlayerStatus::Fetching(_) => {
+                            mvrel(-2, 0);
+                            nc::printw("Fetching playlist...");
+                            nc::printw("\n\n");
+                        },
 
-                PlayerStatus::Playing(track) => {
-                    mvrel(-2, 0);
-                    Self::print_song("Playing", &track);
-                    Self::print_progress(ctx);
-                },
-                PlayerStatus::Finished(track) => {
-                    mvrel(-2, 0);
-                    Self::print_song("Finished", &track);
-                    nc::printw("\n\n");
-                },
-                PlayerStatus::Paused(track) => {
-                    mvrel(-2, 0);
-                    Self::print_song("Paused", &track);
-                    Self::print_progress(ctx);
-                },
+                        PlayerStatus::Playing(track) => {
+                            mvrel(-2, 0);
+                            Self::print_song("Playing", &track);
+                            Self::print_progress(ctx);
+                        },
+                        PlayerStatus::Finished(track) => {
+                            mvrel(-2, 0);
+                            Self::print_song("Finished", &track);
+                            nc::printw("\n\n");
+                        },
+                        PlayerStatus::Paused(track) => {
+                            mvrel(-2, 0);
+                            Self::print_song("Paused", &track);
+                            Self::print_progress(ctx);
+                        },
 
-                PlayerStatus::Error(err) => {
+                        _ => (),
+                    }
+                },
+                Err(err) => {
                     nc::printw(&format!("ERROR: {}\n", err));
-                }
-
-                _ => (),
+                },
             }
         }
         if ctx.player().is_playing() {
