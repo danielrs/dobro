@@ -1,6 +1,3 @@
-#[macro_use]
-mod fsm;
-
 use super::error::Error;
 use super::PlayerAction;
 use super::state::{PlayerState, PlayerStatus};
@@ -78,38 +75,32 @@ pub fn spawn_player(
     let sender = main_sender.clone();
 
     thread::Builder::new().name("player".to_string()).spawn(move || {
-        // /// This macro tries the given Result, and if an Err is given sends the error using
-        // /// the sender in the current context and executes the specified action on Error.
-        // macro_rules! try_or {
-        //     ($e:expr, $action:expr) => {
-        //         match $e {
-        //             Ok(val) => val,
-        //             Err(err) => {
-        //                 sender.send(Err(err.into())).unwrap();
-        //                 $action;
-        //             }
-        //         }
-        //     }
-        // }
 
+        // Initializes driver.
+        let driver = match ao::Driver::new() {
+            Ok(driver) => driver,
+            Err(e) => {
+                sender.send(Err(e.into())).unwrap();
+                sender.send(Ok(PlayerStatus::Shutdown)).unwrap();
+                event_handle.join().unwrap();
+                return;
+            }
+        };
+
+        // Context of our player.
         let mut ctx = ThreadContext {
             pandora: pandora,
             state: state,
             pause_pair: pause_pair,
             sender: sender,
-            driver: ao::Driver::new().unwrap(),
+            driver: driver,
             action: None,
         };
 
-
+        // Finite state machine loop.
         let mut fsm = ThreadState::new();
-        ctx.set_status(PlayerStatus::Standby);
-        loop {
-            // Exit
-            if fsm.is_shutdown() {
-                break;
-            }
-
+        ctx.send_status(PlayerStatus::Standby);
+        while !fsm.is_shutdown() {
             // Action.
             ctx.action = if fsm.is_standby() {
                 event_receiver.recv().ok()
@@ -120,7 +111,6 @@ pub fn spawn_player(
 
             fsm = fsm.update(&mut ctx);
         }
-
         event_handle.join().unwrap();
     }).unwrap()
 }
@@ -129,6 +119,7 @@ pub fn spawn_player(
 // Finite State Machine
 // ----------------
 
+/// Context struct for our finite state machine.
 struct ThreadContext {
     pub pandora: Arc<Pandora>,
     pub state: Arc<Mutex<PlayerState>>,
@@ -140,9 +131,13 @@ struct ThreadContext {
 }
 
 impl ThreadContext {
-    pub fn set_status(&mut self, status: PlayerStatus) {
+    pub fn send_status(&mut self, status: PlayerStatus) {
         self.state.lock().unwrap().set_status(status.clone());
         self.sender.send(Ok(status)).unwrap();
+    }
+
+    pub fn send_error(&self, error: Error) {
+        self.sender.send(Err(error)).unwrap();
     }
 
     pub fn action(&mut self) -> Option<PlayerAction> {
@@ -150,6 +145,7 @@ impl ThreadContext {
     }
 }
 
+/// Finite state machine for the thread.
 enum ThreadState {
     Shutdown,
 
@@ -174,38 +170,12 @@ enum ThreadState {
 }
 
 impl ThreadState {
+    /// Creates a new state machine in Standby state.
     pub fn new() -> ThreadState {
         ThreadState::Standby
     }
 
-    pub fn new_shutdown() -> ThreadState {
-        ThreadState::Shutdown
-    }
-
-    pub fn new_station(station: Station) -> ThreadState {
-        ThreadState::Station {
-            station: station,
-        }
-    }
-
-    pub fn new_track(station: Station, tracklist: VecDeque<Track>) -> ThreadState {
-        ThreadState::Track {
-            station: station,
-            tracklist: tracklist,
-        }
-    }
-
-    pub fn new_playing(station: Station, tracklist: VecDeque<Track>, track: Track, earwax: Earwax, device: ao::Device)
-    -> ThreadState {
-        ThreadState::Playing {
-            station: station,
-            tracklist: tracklist,
-            track: track,
-            earwax: earwax,
-            device: device,
-        }
-    }
-
+    /// Returns true if the current state is Standby state.
     pub fn is_standby(&self) -> bool {
         match *self {
             ThreadState::Standby => true,
@@ -213,6 +183,7 @@ impl ThreadState {
         }
     }
 
+    /// Returns true if the current state is Shutdown state.
     pub fn is_shutdown(&self) -> bool {
         match *self {
             ThreadState::Shutdown => true,
@@ -220,7 +191,11 @@ impl ThreadState {
         }
     }
 
+    // ----------------
     // Updating.
+    // ----------------
+
+    /// Consumes the current state and returns a new state.
     pub fn update(self, ctx: &mut ThreadContext) -> ThreadState {
         match self {
             ThreadState::Standby =>
@@ -242,19 +217,21 @@ impl ThreadState {
 
     fn update_standby(ctx: &mut ThreadContext) -> ThreadState {
         if let Some(PlayerAction::Play(station)) = ctx.action() {
-            ctx.set_status(PlayerStatus::Started(station.clone()));
+            ctx.send_status(PlayerStatus::Started(station.clone()));
             return Self::new_station(station);
         }
-        unreachable!();
+
+        Self::new()
     }
 
     fn update_station(ctx: &mut ThreadContext, station: Station) -> ThreadState {
-        ctx.set_status(PlayerStatus::Fetching(station.clone()));
+        ctx.send_status(PlayerStatus::Fetching(station.clone()));
         match ctx.pandora.stations().playlist(&station).list() {
             Ok(tracklist) => {
                 Self::new_track(station, tracklist.into_iter().collect())
             },
-            Err(_) => {
+            Err(e) => {
+                ctx.send_error(e.into());
                 Self::new_station(station)
             },
         }
@@ -265,15 +242,20 @@ impl ThreadState {
         station: Station,
         mut tracklist: VecDeque<Track>
     ) -> ThreadState {
-        // TODO: Fix this mess of code
         if let Some(track) = tracklist.pop_front() {
             if let Some(ref audio) = track.clone().track_audio {
-                let earwax = Earwax::new(&audio.high_quality.audio_url).unwrap();
-                let format = ao::Format::new();
-                let device = ao::Device::new(&ctx.driver, &format, None).unwrap();
+                match Earwax::new(&audio.high_quality.audio_url) {
+                    Ok(earwax) => {
+                        let format = ao::Format::new();
+                        let device = ao::Device::new(&ctx.driver, &format, None).unwrap();
 
-                ctx.set_status(PlayerStatus::Playing(track.clone()));
-                return Self::new_playing(station, tracklist, track, earwax, device);
+                        ctx.send_status(PlayerStatus::Playing(track.clone()));
+                        return Self::new_playing(station, tracklist, track, earwax, device);
+                    },
+                    Err(e) => {
+                        ctx.send_error(e.into());
+                    }
+                }
             }
         }
         else {
@@ -296,9 +278,9 @@ impl ThreadState {
             let &(ref lock, ref cvar) = &*ctx.pause_pair.clone();
             let mut paused = lock.lock().unwrap();
             while *paused {
-                ctx.set_status(PlayerStatus::Paused(track.clone()));
+                ctx.send_status(PlayerStatus::Paused(track.clone()));
                 paused = cvar.wait(paused).unwrap();
-                ctx.set_status(PlayerStatus::Playing(track.clone()));
+                ctx.send_status(PlayerStatus::Playing(track.clone()));
             }
         }
 
@@ -306,27 +288,27 @@ impl ThreadState {
         if let Some(action) = ctx.action() {
             match action {
                 PlayerAction::Play(new_station) => {
-                    ctx.set_status(PlayerStatus::Finished(track.clone()));
-                    ctx.set_status(PlayerStatus::Stopped(station.clone()));
-                    ctx.set_status(PlayerStatus::Started(new_station.clone()));
+                    ctx.send_status(PlayerStatus::Finished(track.clone()));
+                    ctx.send_status(PlayerStatus::Stopped(station.clone()));
+                    ctx.send_status(PlayerStatus::Started(new_station.clone()));
                     return Self::new_station(new_station);
                 },
                 PlayerAction::Stop => {
-                    ctx.set_status(PlayerStatus::Finished(track.clone()));
-                    ctx.set_status(PlayerStatus::Stopped(station.clone()));
-                    ctx.set_status(PlayerStatus::Standby);
+                    ctx.send_status(PlayerStatus::Finished(track.clone()));
+                    ctx.send_status(PlayerStatus::Stopped(station.clone()));
+                    ctx.send_status(PlayerStatus::Standby);
                     return Self::new();
                 },
 
                 PlayerAction::Skip => {
-                    ctx.set_status(PlayerStatus::Finished(track.clone()));
+                    ctx.send_status(PlayerStatus::Finished(track.clone()));
                     return Self::new_track(station, tracklist);
                 },
 
                 PlayerAction::Exit => {
-                    ctx.set_status(PlayerStatus::Finished(track.clone()));
-                    ctx.set_status(PlayerStatus::Stopped(station.clone()));
-                    ctx.set_status(PlayerStatus::Shutdown);
+                    ctx.send_status(PlayerStatus::Finished(track.clone()));
+                    ctx.send_status(PlayerStatus::Stopped(station.clone()));
+                    ctx.send_status(PlayerStatus::Shutdown);
                     return Self::new_shutdown();
                 },
 
@@ -340,10 +322,42 @@ impl ThreadState {
             device.play(chunk.data);
         }
         else {
-            ctx.set_status(PlayerStatus::Finished(track.clone()));
+            ctx.send_status(PlayerStatus::Finished(track.clone()));
             return Self::new_track(station, tracklist);
         }
 
         return Self::new_playing(station, tracklist, track, earwax, device);
+    }
+
+    // ----------------
+    // Creation of different states.
+    // ----------------
+
+    fn new_shutdown() -> ThreadState {
+        ThreadState::Shutdown
+    }
+
+    fn new_station(station: Station) -> ThreadState {
+        ThreadState::Station {
+            station: station,
+        }
+    }
+
+    fn new_track(station: Station, tracklist: VecDeque<Track>) -> ThreadState {
+        ThreadState::Track {
+            station: station,
+            tracklist: tracklist,
+        }
+    }
+
+    fn new_playing(station: Station, tracklist: VecDeque<Track>, track: Track, earwax: Earwax, device: ao::Device)
+    -> ThreadState {
+        ThreadState::Playing {
+            station: station,
+            tracklist: tracklist,
+            track: track,
+            earwax: earwax,
+            device: device,
+        }
     }
 }
