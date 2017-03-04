@@ -80,6 +80,7 @@ impl Player {
 
     /// Starts playing the given station.
     pub fn play(&mut self, station: Station) {
+        self.unpause();
         self.sender.send(PlayerAction::Play(station)).unwrap();
     }
 
