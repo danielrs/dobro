@@ -218,6 +218,7 @@ impl ThreadState {
 
     fn update_standby(ctx: &mut ThreadContext) -> ThreadState {
         if let Some(PlayerAction::Play(station)) = ctx.action() {
+            ctx.state.lock().unwrap().set_station(station.clone());
             ctx.send_status(PlayerStatus::Started(station.clone()));
             return Self::new_station(station);
         }
@@ -266,6 +267,7 @@ impl ThreadState {
                 }
             };
 
+            ctx.state.lock().unwrap().set_track(track.clone());
             ctx.send_status(PlayerStatus::Playing(track.clone()));
             return Self::new_playing(station, tracklist, track, earwax, device);
         }
@@ -297,12 +299,15 @@ impl ThreadState {
         if let Some(action) = ctx.try_action() {
             match action {
                 PlayerAction::Play(new_station) => {
+                    ctx.state.lock().unwrap().clear_info();
+                    ctx.state.lock().unwrap().set_station(new_station.clone());
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Started(new_station.clone()));
                     return Self::new_station(new_station);
                 },
                 PlayerAction::Stop => {
+                    ctx.state.lock().unwrap().clear_info();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Standby);
@@ -310,11 +315,14 @@ impl ThreadState {
                 },
 
                 PlayerAction::Skip => {
+                    ctx.state.lock().unwrap().clear_track();
+                    ctx.state.lock().unwrap().clear_progress();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     return Self::new_track(station, tracklist);
                 },
 
                 PlayerAction::Exit => {
+                    ctx.state.lock().unwrap().clear_info();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Shutdown);
@@ -332,6 +340,8 @@ impl ThreadState {
             device.play(chunk.data);
         }
         else {
+            ctx.state.lock().unwrap().clear_track();
+            ctx.state.lock().unwrap().clear_progress();
             ctx.send_status(PlayerStatus::Finished(track.clone()));
             return Self::new_track(station, tracklist);
         }

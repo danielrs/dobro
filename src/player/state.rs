@@ -35,6 +35,10 @@ impl PlayerState {
         self.station = Some(station);
     }
 
+    pub fn clear_station(&mut self) {
+        self.station = None;
+    }
+
     pub fn track(&self) -> Option<Track> {
         self.track.clone()
     }
@@ -43,12 +47,20 @@ impl PlayerState {
         self.track = Some(track);
     }
 
+    pub fn clear_track(&mut self) {
+        self.track = None;
+    }
+
     pub fn progress(&self) -> Option<(i64, i64)> {
         self.progress.clone()
     }
 
     pub fn set_progress(&mut self, current: i64, end: i64) {
         self.progress = Some((current, end));
+    }
+
+    pub fn clear_progress(&mut self) {
+        self.progress = None;
     }
 
     pub fn status(&self) -> PlayerStatus {
