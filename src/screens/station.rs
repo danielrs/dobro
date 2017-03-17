@@ -123,7 +123,8 @@ impl State for StationScreen {
                     }
                 },
                 Err(err) => {
-                    nc::printw(&format!("ERROR: {}\n", err));
+                    nc::printw(&format!("ERROR: {}", err));
+                    nc::printw("\n\n");
                 },
             }
         }
