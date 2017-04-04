@@ -37,8 +37,8 @@ Simple interface made with ncurses. This would be the "main" Dobro application, 
 #### User settings
 After everything else is done. Should load from simple configuration files (preferably in toml format).
 
-[earwax]: https;//github.com/danielrs/earwax
-[ao-rs]: https;//github.com/danielrs/ao-rs
+[earwax]: https://github.com/danielrs/earwax
+[ao-rs]: https://github.com/danielrs/ao-rs
 
 [hyper]: https://github.com/hyperium/hyper
 [serde]: https://github.com/serde-rs/serde
