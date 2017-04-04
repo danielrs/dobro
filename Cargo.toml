@@ -5,12 +5,6 @@ authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
 ncurses = "5.84.0"
-
-[dependencies.pandora]
-path = "src/lib/pandora-rs"
-
-[dependencies.ao]
-path = "src/lib/ao-rs"
-
-[dependencies.earwax]
-path = "src/lib/earwax"
+ao_rs = "0.1.0"
+earwax = "0.1.1"
+pandora = "0.1.0"

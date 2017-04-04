@@ -5,11 +5,10 @@ Unofficial Pandora terminal client written in Rust.
 
 #### Required libraries
 
-The libraries and their versions that are used to compile the project are:
+Some modules of the terminal client uses modules that depend on some C libraries for dynamic linking.
 
-* ffmpeg 2.8 (libavcodec, libavformat, libavdevice)
-* libao 1.1.0
-* libncurses 6.0
+* [earwax][earwax]: Requires ffmpeg 2.8.
+* [ao-rs][ao-rs]: Requires libao 1.1.
 
 #### Compiling
 
@@ -37,6 +36,9 @@ Simple interface made with ncurses. This would be the "main" Dobro application, 
 
 #### User settings
 After everything else is done. Should load from simple configuration files (preferably in toml format).
+
+[earwax]: https;//github.com/danielrs/earwax
+[ao-rs]: https;//github.com/danielrs/ao-rs
 
 [hyper]: https://github.com/hyperium/hyper
 [serde]: https://github.com/serde-rs/serde

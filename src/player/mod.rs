@@ -1,3 +1,4 @@
+mod audio;
 mod error;
 mod state;
 mod thread;

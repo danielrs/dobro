@@ -1,9 +1,9 @@
+use super::audio::Audio;
 use super::error::Error;
 use super::PlayerAction;
 use super::state::{PlayerState, PlayerStatus};
 
 use ao;
-use earwax::Earwax;
 use pandora::{Pandora, Station, Track};
 
 use std::collections::VecDeque;
@@ -76,17 +76,6 @@ pub fn spawn_player(
 
     thread::Builder::new().name("player".to_string()).spawn(move || {
 
-        // Initializes driver.
-        let driver = match ao::Driver::new() {
-            Ok(driver) => driver,
-            Err(e) => {
-                sender.send(Err(e.into())).unwrap();
-                sender.send(Ok(PlayerStatus::Shutdown)).unwrap();
-                event_handle.join().unwrap();
-                return;
-            }
-        };
-
         // Context of our player.
         let mut ctx = ThreadContext {
             pandora: pandora,
@@ -94,7 +83,6 @@ pub fn spawn_player(
             pause_pair: pause_pair,
             sender: sender,
             receiver: event_receiver,
-            driver: driver,
         };
 
         // Finite state machine loop.
@@ -118,7 +106,6 @@ struct ThreadContext {
     pub pause_pair: Arc<(Mutex<bool>, Condvar)>,
     pub sender: Sender<Result<PlayerStatus, Error>>,
     pub receiver: Receiver<PlayerAction>,
-    pub driver: ao::Driver,
 }
 
 impl ThreadContext {
@@ -165,8 +152,7 @@ enum ThreadState {
         station: Station,
         tracklist: VecDeque<Track>,
         track: Track,
-        earwax: Earwax,
-        device: ao::Device,
+        audio: Audio,
     },
 }
 
@@ -208,8 +194,8 @@ impl ThreadState {
             ThreadState::Track { station, tracklist } =>
                 Self::update_track(ctx, station, tracklist),
 
-            ThreadState::Playing { station, tracklist, track, earwax, device} =>
-                Self::update_playing(ctx, station, tracklist, track, earwax, device),
+            ThreadState::Playing { station, tracklist, track, audio} =>
+                Self::update_playing(ctx, station, tracklist, track, audio),
 
             _ =>
                 self,
@@ -248,19 +234,8 @@ impl ThreadState {
         if let Some((track, audio)) = tracklist.pop_front().and_then(|track| {
             track.track_audio.clone().map(|audio| (track, audio))
         }) {
-            // Initializes earwax.
-            let earwax = match Earwax::new(&audio.high_quality.audio_url) {
-                Ok(earwax) => earwax,
-                Err(e) => {
-                    ctx.send_error(e.into());
-                    return Self::new_track(station, tracklist);
-                }
-            };
-
-            // Initializes ao device for playback.
-            let format = ao::Format::new();
-            let device = match ao::Device::new(&ctx.driver, &format, None) {
-                Ok(device) => device,
+            let audio = match Audio::new(&audio.high_quality.audio_url) {
+                Ok(audio) => audio,
                 Err(e) => {
                     ctx.send_error(e.into());
                     return Self::new_track(station, tracklist);
@@ -269,7 +244,7 @@ impl ThreadState {
 
             ctx.state.lock().unwrap().set_track(track.clone());
             ctx.send_status(PlayerStatus::Playing(track.clone()));
-            return Self::new_playing(station, tracklist, track, earwax, device);
+            return Self::new_playing(station, tracklist, track, audio);
         }
         else {
             Self::new_station(station)
@@ -281,8 +256,7 @@ impl ThreadState {
         station: Station,
         tracklist: VecDeque<Track>,
         track: Track,
-        mut earwax: Earwax,
-        device: ao::Device,
+        mut audio: Audio,
     ) -> ThreadState {
         // Pauses.
         {
@@ -334,19 +308,17 @@ impl ThreadState {
         }
 
         // Playback.
-        let duration = earwax.info().duration.seconds();
-        if let Some(chunk) = earwax.spit() {
-            ctx.state.lock().unwrap().set_progress(chunk.time.seconds(), duration);
-            device.play(chunk.data);
-        }
-        else {
+        // FIXME: Maybe change the API of Audio?
+        if let Err(()) = audio.play(|current, duration| {
+            ctx.state.lock().unwrap().set_progress(current.seconds(), duration.seconds());
+        }) {
             ctx.state.lock().unwrap().clear_track();
             ctx.state.lock().unwrap().clear_progress();
             ctx.send_status(PlayerStatus::Finished(track.clone()));
             return Self::new_track(station, tracklist);
         }
 
-        return Self::new_playing(station, tracklist, track, earwax, device);
+        return Self::new_playing(station, tracklist, track, audio);
     }
 
     // ----------------
@@ -370,14 +342,13 @@ impl ThreadState {
         }
     }
 
-    fn new_playing(station: Station, tracklist: VecDeque<Track>, track: Track, earwax: Earwax, device: ao::Device)
+    fn new_playing(station: Station, tracklist: VecDeque<Track>, track: Track, audio: Audio)
     -> ThreadState {
         ThreadState::Playing {
             station: station,
             tracklist: tracklist,
             track: track,
-            earwax: earwax,
-            device: device,
+            audio: audio,
         }
     }
 }

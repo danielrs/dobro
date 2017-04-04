@@ -5,7 +5,7 @@
 
 extern crate ncurses;
 
-extern crate ao;
+extern crate ao_rs as ao;
 extern crate earwax;
 extern crate pandora;
 
