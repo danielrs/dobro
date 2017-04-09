@@ -40,7 +40,7 @@ pub fn wgetstring(window: nc::WINDOW) -> String {
             nc::getyx(window, &mut y, &mut x);
             pos_history.push((y, x));
             string.push(c);
-            nc::wechochar(window, ch as u64);
+            nc::wechochar(window, ch as nc::chtype);
         }
         ch = nc::wgetch(window);
     }
