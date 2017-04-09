@@ -75,7 +75,6 @@ pub fn spawn_player(
     let sender = main_sender.clone();
 
     thread::Builder::new().name("player".to_string()).spawn(move || {
-
         // Context of our player.
         let mut ctx = ThreadContext {
             pandora: pandora,
@@ -91,6 +90,7 @@ pub fn spawn_player(
         while !fsm.is_shutdown() {
             fsm = fsm.update(&mut ctx);
         }
+
         event_handle.join().unwrap();
     }).unwrap()
 }
