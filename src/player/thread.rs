@@ -308,10 +308,10 @@ impl ThreadState {
         }
 
         // Playback.
-        // FIXME: Maybe change the API of Audio?
-        if let Err(()) = audio.play(|current, duration| {
+        if let Ok((current, duration)) = audio.play() {
             ctx.state.lock().unwrap().set_progress(current.seconds(), duration.seconds());
-        }) {
+        }
+        else {
             ctx.state.lock().unwrap().clear_track();
             ctx.state.lock().unwrap().clear_progress();
             ctx.send_status(PlayerStatus::Finished(track.clone()));

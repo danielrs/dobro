@@ -14,7 +14,7 @@ use std::thread::JoinHandle;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::mpsc::{channel, Sender, Receiver};
 
-/// Player type for playing audio in a separate thread, with a channel
+/// Facade type for controlling the player thread, it use channels
 /// for communication.
 pub struct Player {
     #[allow(dead_code)]

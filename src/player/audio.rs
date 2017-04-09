@@ -3,7 +3,7 @@ use super::error::Error;
 use ao;
 use earwax::{Earwax, Timestamp};
 
-/// Type for streaming audio playback that hides the details earwax and ao-rs handling.
+/// Type for audio streaming audio that hides the details of earwax and ao-rs handling.
 pub struct Audio {
     earwax: Earwax,
     driver: ao::Driver,
@@ -27,14 +27,16 @@ impl Audio {
         })
     }
 
-    /// Plays the next chunk of the stream to the default audio device. The passed
-    /// closure consumes the chunk (after being played).
-    pub fn play<F>(&mut self, closure: F) -> Result<(), ()> where F: FnOnce(Timestamp, Timestamp) {
+    /// Plays the next chunk of the stream to the default audio device.
+    /// # Returns
+    /// If playback was successful (at getting next stream chunk), the value returned
+    /// is a tuple where the first element is the current timestamp, and the second
+    /// element is the total timestamp.
+    pub fn play(&mut self) -> Result<(Timestamp, Timestamp), ()> {
         let duration = self.earwax.info().duration;
         if let Some(chunk) = self.earwax.spit() {
             self.device.play(chunk.data);
-            closure(chunk.time, duration);
-            Ok(())
+            Ok((chunk.time, duration))
         }
         else {
             Err(())
