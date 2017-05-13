@@ -1,2 +1,6 @@
 language: rust
 rust: nightly
+dist: xenial
+os: linux
+before_install:
+    sudo apt-get install libssl-dev libavcodec-dev libavformat-dev libavdevice-dev libao-dev
