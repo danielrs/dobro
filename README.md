@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/danielrs/dobro.svg?branch=master)](https://travis-ci.org/danielrs/dobro)
+
 # dobro
 Unofficial Pandora terminal client written in Rust.
 
