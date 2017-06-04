@@ -13,14 +13,15 @@ use std::sync::{Arc, Mutex, Condvar};
 use std::sync::mpsc::{channel, Sender, Receiver};
 
 /// This function starts the event and player thread.
-pub fn spawn_player(
-    pandora: &Arc<Pandora>,
-    main_state: &Arc<Mutex<PlayerState>>,
-    main_sender: Sender<Result<PlayerStatus, Error>>,
-    main_receiver: Receiver<PlayerAction>) -> JoinHandle<()> {
+pub fn spawn_player(pandora: &Arc<Pandora>,
+                    main_state: &Arc<Mutex<PlayerState>>,
+                    main_sender: Sender<Result<PlayerStatus, Error>>,
+                    main_receiver: Receiver<PlayerAction>)
+                    -> JoinHandle<()> {
 
     // The Condvar used for pausing the player thread.
-    let main_pause_pair: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false), Condvar::new()));
+    let main_pause_pair: Arc<(Mutex<bool>, Condvar)> = Arc::new((Mutex::new(false),
+                                                                 Condvar::new()));
 
     // Sender and receiver for communication between the event thread and
     // the player thread.
@@ -34,36 +35,39 @@ pub fn spawn_player(
     let sender = main_sender.clone();
 
     let event_handle = {
-        thread::Builder::new().name("event".to_string()).spawn(move || {
-            while let Ok(action) = receiver.recv() {
-                match action {
-                    PlayerAction::Pause => {
-                        let &(ref lock, _) = &*pause_pair;
-                        let mut paused = lock.lock().unwrap();
-                        *paused = true;
-                    },
-                    PlayerAction::Unpause => {
-                        let &(ref lock, ref cvar) = &*pause_pair;
-                        let mut paused = lock.lock().unwrap();
-                        *paused = false;
-                        cvar.notify_one();
-                    },
+        thread::Builder::new()
+            .name("event".to_string())
+            .spawn(move || while let Ok(action) = receiver.recv() {
+                       match action {
+                           PlayerAction::Pause => {
+                               let &(ref lock, _) = &*pause_pair;
+                               let mut paused = lock.lock().unwrap();
+                               *paused = true;
+                           }
+                           PlayerAction::Unpause => {
+                               let &(ref lock, ref cvar) = &*pause_pair;
+                               let mut paused = lock.lock().unwrap();
+                               *paused = false;
+                               cvar.notify_one();
+                           }
 
-                    PlayerAction::Report => {
-                        sender.send(Ok(state.lock().unwrap().status().clone())).unwrap();
-                    },
+                           PlayerAction::Report => {
+                               sender
+                                   .send(Ok(state.lock().unwrap().status().clone()))
+                                   .unwrap();
+                           }
 
-                    PlayerAction::Exit => {
-                        event_sender.send(PlayerAction::Exit).unwrap();
-                        break;
-                    },
+                           PlayerAction::Exit => {
+                               event_sender.send(PlayerAction::Exit).unwrap();
+                               break;
+                           }
 
-                    action => {
-                        event_sender.send(action).unwrap();
-                    }
-                }
-            }
-        }).unwrap()
+                           action => {
+                               event_sender.send(action).unwrap();
+                           }
+                       }
+                   })
+            .unwrap()
     };
 
     // The 'player' thread runs while the Player is in scope. It plays the given station
@@ -74,25 +78,28 @@ pub fn spawn_player(
     let pause_pair = main_pause_pair.clone();
     let sender = main_sender.clone();
 
-    thread::Builder::new().name("player".to_string()).spawn(move || {
-        // Context of our player.
-        let mut ctx = ThreadContext {
-            pandora: pandora,
-            state: state,
-            pause_pair: pause_pair,
-            sender: sender,
-            receiver: event_receiver,
-        };
+    thread::Builder::new()
+        .name("player".to_string())
+        .spawn(move || {
+            // Context of our player.
+            let mut ctx = ThreadContext {
+                pandora: pandora,
+                state: state,
+                pause_pair: pause_pair,
+                sender: sender,
+                receiver: event_receiver,
+            };
 
-        // Finite state machine loop.
-        let mut fsm = ThreadFSM::new();
-        ctx.send_status(PlayerStatus::Standby);
-        while !fsm.is_shutdown() {
-            fsm = fsm.update(&mut ctx);
-        }
+            // Finite state machine loop.
+            let mut fsm = ThreadFSM::new();
+            ctx.send_status(PlayerStatus::Standby);
+            while !fsm.is_shutdown() {
+                fsm = fsm.update(&mut ctx);
+            }
 
-        event_handle.join().unwrap();
-    }).unwrap()
+            event_handle.join().unwrap();
+        })
+        .unwrap()
 }
 
 // ----------------
@@ -139,9 +146,7 @@ enum ThreadFSM {
 
     Standby,
 
-    Station {
-        station: Station
-    },
+    Station { station: Station },
 
     Track {
         station: Station,
@@ -185,20 +190,23 @@ impl ThreadFSM {
     /// Consumes the current state and returns a new state.
     pub fn update(self, ctx: &mut ThreadContext) -> ThreadFSM {
         match self {
-            ThreadFSM::Standby =>
-                Self::update_standby(ctx),
+            ThreadFSM::Standby => Self::update_standby(ctx),
 
-            ThreadFSM::Station { station } =>
-                Self::update_station(ctx, station),
+            ThreadFSM::Station { station } => Self::update_station(ctx, station),
 
-            ThreadFSM::Track { station, track_loader } =>
-                Self::update_track(ctx, station, track_loader),
+            ThreadFSM::Track {
+                station,
+                track_loader,
+            } => Self::update_track(ctx, station, track_loader),
 
-            ThreadFSM::Playing { station, track_loader, track, audio } =>
-                Self::update_playing(ctx, station, track_loader, track, audio),
+            ThreadFSM::Playing {
+                station,
+                track_loader,
+                track,
+                audio,
+            } => Self::update_playing(ctx, station, track_loader, track, audio),
 
-            _ =>
-                self,
+            _ => self,
         }
     }
 
@@ -218,19 +226,18 @@ impl ThreadFSM {
         match ctx.pandora.stations().playlist(&station).list() {
             Ok(tracklist) => {
                 Self::new_track(station, TrackLoader::new(tracklist.into_iter().collect()))
-            },
+            }
             Err(e) => {
                 ctx.send_error(e.into());
                 Self::new_station(station)
-            },
+            }
         }
     }
 
-    fn update_track(
-        ctx: &mut ThreadContext,
-        station: Station,
-        mut track_loader: TrackLoader,
-    ) -> ThreadFSM {
+    fn update_track(ctx: &mut ThreadContext,
+                    station: Station,
+                    mut track_loader: TrackLoader)
+                    -> ThreadFSM {
         if let Some((track, audio)) = track_loader.next() {
             ctx.state.lock().unwrap().set_track(track.clone());
             ctx.send_status(PlayerStatus::Playing(track.clone()));
@@ -239,13 +246,12 @@ impl ThreadFSM {
         Self::new_station(station)
     }
 
-    fn update_playing(
-        ctx: &mut ThreadContext,
-        station: Station,
-        track_loader: TrackLoader,
-        track: Track,
-        mut audio: Audio,
-    ) -> ThreadFSM {
+    fn update_playing(ctx: &mut ThreadContext,
+                      station: Station,
+                      track_loader: TrackLoader,
+                      track: Track,
+                      mut audio: Audio)
+                      -> ThreadFSM {
         // Pauses.
         {
             let &(ref lock, ref cvar) = &*ctx.pause_pair.clone();
@@ -267,21 +273,21 @@ impl ThreadFSM {
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Started(new_station.clone()));
                     return Self::new_station(new_station);
-                },
+                }
                 PlayerAction::Stop => {
                     ctx.state.lock().unwrap().clear_info();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Standby);
                     return Self::new();
-                },
+                }
 
                 PlayerAction::Skip => {
                     ctx.state.lock().unwrap().clear_track();
                     ctx.state.lock().unwrap().clear_progress();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
                     return Self::new_track(station, track_loader);
-                },
+                }
 
                 PlayerAction::Exit => {
                     ctx.state.lock().unwrap().clear_info();
@@ -289,7 +295,7 @@ impl ThreadFSM {
                     ctx.send_status(PlayerStatus::Stopped(station.clone()));
                     ctx.send_status(PlayerStatus::Shutdown);
                     return Self::new_shutdown();
-                },
+                }
 
                 _ => (),
             }
@@ -297,9 +303,11 @@ impl ThreadFSM {
 
         // Playback.
         if let Ok((current, duration)) = audio.play() {
-            ctx.state.lock().unwrap().set_progress(current.seconds(), duration.seconds());
-        }
-        else {
+            ctx.state
+                .lock()
+                .unwrap()
+                .set_progress(current.seconds(), duration.seconds());
+        } else {
             ctx.state.lock().unwrap().clear_track();
             ctx.state.lock().unwrap().clear_progress();
             ctx.send_status(PlayerStatus::Finished(track.clone()));
@@ -318,9 +326,7 @@ impl ThreadFSM {
     }
 
     fn new_station(station: Station) -> ThreadFSM {
-        ThreadFSM::Station {
-            station: station,
-        }
+        ThreadFSM::Station { station: station }
     }
 
     fn new_track(station: Station, track_loader: TrackLoader) -> ThreadFSM {
@@ -330,12 +336,11 @@ impl ThreadFSM {
         }
     }
 
-    fn new_playing(
-        station: Station,
-        track_loader: TrackLoader,
-        track: Track,
-        audio: Audio,
-    ) -> ThreadFSM {
+    fn new_playing(station: Station,
+                   track_loader: TrackLoader,
+                   track: Track,
+                   audio: Audio)
+                   -> ThreadFSM {
         ThreadFSM::Playing {
             station: station,
             track_loader: track_loader,

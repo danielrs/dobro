@@ -34,12 +34,10 @@ impl State for StationRenameScreen {
                     // if let Some(ref mut st) = ctx.player_mut().state().station {
                     //     st.station_name = new_name;
                     // }
-                }
-                else {
+                } else {
                     nc::printw(&format!("Unable to use the name \"{}\"\n", &new_name));
                 }
-            }
-            else {
+            } else {
                 nc::printw("Leaving old name\n");
             }
         }

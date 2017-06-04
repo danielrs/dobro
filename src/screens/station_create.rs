@@ -22,14 +22,15 @@ impl StationMusicScreen for StationCreateScreen {
         "Create station from artist or song: "
     }
 
-    fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T) where T: ToMusicToken {
+    fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T)
+        where T: ToMusicToken
+    {
         nc::printw("Creating station... ");
         nc::refresh();
         if let Ok(station) = ctx.pandora().stations().create(music_token) {
             nc::printw("Done\n");
             ctx.player_mut().play(station);
-        }
-        else {
+        } else {
             nc::printw("Unable to create station\n");
         }
     }
@@ -75,10 +76,10 @@ pub trait StationMusicScreen {
                 }
                 nc::printw("Songs:\n");
                 for (i, song) in results.songs().iter().enumerate().take(RESULTS_LENGTH) {
-                    nc::printw(&format!(
-                            "{} - {} by {}\n",
-                            i as i32 + artists_len, song.song_name, song.artist_name
-                    ));
+                    nc::printw(&format!("{} - {} by {}\n",
+                                       i as i32 + artists_len,
+                                       song.song_name,
+                                       song.artist_name));
                 }
 
                 let mut music_token = None;
@@ -91,15 +92,12 @@ pub trait StationMusicScreen {
 
                     if choice < 0 {
                         break;
-                    }
-                    else if choice < artists_len {
-                        music_token =
-                            Some(results.artists()[choice as usize].to_music_token());
+                    } else if choice < artists_len {
+                        music_token = Some(results.artists()[choice as usize].to_music_token());
                         break;
-                    }
-                    else if choice < artists_len + songs_len {
-                        music_token =
-                            Some(results.songs()[(choice - artists_len) as usize].to_music_token());
+                    } else if choice < artists_len + songs_len {
+                        music_token = Some(results.songs()[(choice - artists_len) as usize]
+                                               .to_music_token());
                         break;
                     }
                 }
@@ -107,12 +105,10 @@ pub trait StationMusicScreen {
                 if let Some(ref music_token) = music_token {
                     self.on_choice(ctx, music_token);
                 }
-            }
-            else {
+            } else {
                 nc::printw("No results\n");
             }
-        }
-        else {
+        } else {
             nc::printw("Error\n");
         }
     }

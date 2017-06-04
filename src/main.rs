@@ -1,4 +1,5 @@
-//! This example asks for user login information, shows the available stations, and lets the user select which station to play.
+//! This example asks for user login information, shows the available stations, and lets
+//! the user select which station to play.
 //!
 //! **Becareful**, this example is still too simple. It doesn't handle reconnection
 //! to pandora when credentials expire.
@@ -19,10 +20,10 @@ use ncurses as nc;
 use pandora::Pandora;
 
 use player::Player;
-use state::{Automaton};
+use state::Automaton;
 use screens::StationScreen;
 
-use std::sync::{Arc};
+use std::sync::Arc;
 
 use ui::*;
 
@@ -61,7 +62,7 @@ fn main() {
                 automaton.update(&mut dobro);
                 nc::refresh();
             }
-        },
+        }
         Err(_) => {
             nc::attron(nc::A_BLINK());
             nc::printw("Unable to connect to pandora using the provided credentials\n");

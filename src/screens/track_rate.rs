@@ -11,9 +11,7 @@ pub struct TrackRateScreen {
 
 impl TrackRateScreen {
     pub fn new(is_positive: bool) -> Self {
-        TrackRateScreen {
-            is_positive: is_positive
-        }
+        TrackRateScreen { is_positive: is_positive }
     }
 }
 
@@ -27,14 +25,19 @@ impl State for TrackRateScreen {
                 nc::printw("Rating track... ");
                 nc::refresh();
 
-                let res = ctx.pandora().stations()
-                             .playlist(&station).rate(track, self.is_positive);
+                let res = ctx.pandora()
+                    .stations()
+                    .playlist(&station)
+                    .rate(track, self.is_positive);
                 match res {
                     Ok(_) => {
                         nc::printw("Done\n");
-                        if !self.is_positive { ctx.player_mut().skip(); }
-                        else { ctx.player().report(); }
-                    },
+                        if !self.is_positive {
+                            ctx.player_mut().skip();
+                        } else {
+                            ctx.player().report();
+                        }
+                    }
                     _ => {
                         nc::printw("Error\n");
                     }

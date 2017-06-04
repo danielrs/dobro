@@ -29,8 +29,7 @@ impl State for StationSelectScreen {
 
         if stations.len() <= 0 {
             return Trans::Push(Box::new(StationCreateScreen::new()));
-        }
-        else {
+        } else {
             for (index, station) in stations.iter().enumerate() {
                 nc::printw(&format!("{} - {}\n", index, station.station_name));
             }
@@ -45,9 +44,8 @@ impl State for StationSelectScreen {
 
                 if choice >= 0 && choice < stations.len() as i32 {
                     break;
-                }
-                else if choice < 0 {
-                    return Trans::Pop
+                } else if choice < 0 {
+                    return Trans::Pop;
                 }
             }
 

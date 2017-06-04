@@ -20,11 +20,11 @@ impl Audio {
         let device = try!(ao::Device::new(&driver, &format, None));
 
         Ok(Audio {
-            earwax: earwax,
-            driver: driver,
-            format: format,
-            device: device,
-        })
+               earwax: earwax,
+               driver: driver,
+               format: format,
+               device: device,
+           })
     }
 
     /// Plays the next chunk of the stream to the default audio device.
@@ -37,8 +37,7 @@ impl Audio {
         if let Some(chunk) = self.earwax.spit() {
             self.device.play(chunk.data);
             Ok((chunk.time, duration))
-        }
-        else {
+        } else {
             Err(())
         }
     }

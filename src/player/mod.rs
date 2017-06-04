@@ -111,8 +111,7 @@ impl Player {
     pub fn toggle_pause(&mut self) {
         if self.is_paused() {
             self.unpause();
-        }
-        else {
+        } else {
             self.pause();
         }
     }
@@ -180,8 +179,7 @@ impl Player {
     pub fn try_next_status(&self) -> Option<Result<PlayerStatus, Error>> {
         if let Ok(s) = self.receiver.try_recv() {
             Some(s)
-        }
-        else {
+        } else {
             None
         }
     }

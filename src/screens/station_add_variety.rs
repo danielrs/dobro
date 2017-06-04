@@ -20,15 +20,16 @@ impl StationMusicScreen for StationAddVarietyScreen {
         "Add variety from artist or song: "
     }
 
-    fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T) where T: ToMusicToken {
+    fn on_choice<T>(&mut self, ctx: &mut Dobro, music_token: &T)
+        where T: ToMusicToken
+    {
         let station = ctx.player().state().station();
         if let Some(ref station) = station {
             nc::printw(&format!("Adding variety to \"{}\"... ", station.station_name));
             nc::refresh();
             if let Ok(_) = ctx.pandora().stations().add_seed(station, music_token) {
                 nc::printw("Done\n");
-            }
-            else {
+            } else {
                 nc::printw("Unable to add variety to station\n");
             }
         }

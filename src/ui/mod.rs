@@ -35,8 +35,7 @@ pub fn wgetstring(window: nc::WINDOW) -> String {
                 nc::mvwdelch(window, y, x);
                 string.pop();
             }
-        }
-        else if let Some(c) = char::from_u32(ch as u32) {
+        } else if let Some(c) = char::from_u32(ch as u32) {
             nc::getyx(window, &mut y, &mut x);
             pos_history.push((y, x));
             string.push(c);
@@ -61,8 +60,7 @@ pub fn wgetsecretstring(window: nc::WINDOW) -> String {
     while ch != '\n' as i32 && ch != '\r' as i32 {
         if ch == 127 {
             string.pop();
-        }
-        else if let Some(c) = char::from_u32(ch as u32) {
+        } else if let Some(c) = char::from_u32(ch as u32) {
             string.push(c);
         }
         ch = nc::wgetch(window);

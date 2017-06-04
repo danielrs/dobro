@@ -38,11 +38,10 @@ impl StationScreen {
 
     fn print_song(status: &str, track: &Track) {
         let loved = track.song_rating.unwrap_or(0) > 0;
-        nc::printw(
-            &format!("{} \"{}\" by {}",
-                     status,
-                     track.song_name.as_ref().unwrap_or(&"Unknown".to_owned()),
-                     track.artist_name.as_ref().unwrap_or(&"Unknown".to_owned())));
+        nc::printw(&format!("{} \"{}\" by {}",
+                           status,
+                           track.song_name.as_ref().unwrap_or(&"Unknown".to_owned()),
+                           track.artist_name.as_ref().unwrap_or(&"Unknown".to_owned())));
         nc::printw(&format!("{}\n", if loved { "  <3" } else { "" }));
     }
 
@@ -59,7 +58,11 @@ impl StationScreen {
             nc::getyx(nc::stdscr(), &mut y, &mut x);
             nc::mv(y, 0);
             nc::clrtoeol();
-            nc::printw(&format!("{:02}:{:02}/{:02}:{:02}", mins, secs, total_mins, total_secs));
+            nc::printw(&format!("{:02}:{:02}/{:02}:{:02}",
+                               mins,
+                               secs,
+                               total_mins,
+                               total_secs));
         }
         nc::printw("\n");
     }
@@ -70,11 +73,12 @@ impl State for StationScreen {
         let status = ctx.player().state().status().clone();
 
         match status {
-            PlayerStatus::Playing(_) | PlayerStatus::Paused(_) => {
+            PlayerStatus::Playing(_) |
+            PlayerStatus::Paused(_) => {
                 nc::printw("\n\n");
                 ctx.player().report();
-            },
-            _ => ()
+            }
+            _ => (),
         };
     }
 
@@ -85,7 +89,7 @@ impl State for StationScreen {
                     match status {
                         PlayerStatus::Standby => {
                             return Trans::Push(Box::new(StationSelectScreen::new()));
-                        },
+                        }
 
                         PlayerStatus::Started(station) => {
                             nc::printw("Type '?' for help.\n");
@@ -93,40 +97,40 @@ impl State for StationScreen {
                             nc::printw(&format!("Station \"{}\"\n", station.station_name));
                             nc::attroff(nc::A_BOLD());
                             nc::printw("\n\n");
-                        },
+                        }
                         PlayerStatus::Stopped(_) => {
                             mvrel(-2, 0);
-                        },
+                        }
                         PlayerStatus::Fetching(_) => {
                             mvrel(-2, 0);
                             nc::printw("Fetching playlist...");
                             nc::printw("\n\n");
-                        },
+                        }
 
                         PlayerStatus::Playing(track) => {
                             mvrel(-2, 0);
                             Self::print_song("Playing", &track);
                             Self::print_progress(ctx);
-                        },
+                        }
                         PlayerStatus::Finished(track) => {
                             mvrel(-2, 0);
                             Self::print_song("Finished", &track);
                             nc::printw("\n\n");
-                        },
+                        }
                         PlayerStatus::Paused(track) => {
                             mvrel(-2, 0);
                             Self::print_song("Paused", &track);
                             Self::print_progress(ctx);
-                        },
+                        }
 
                         _ => (),
                     }
-                },
+                }
                 Err(err) => {
                     mvrel(-1, 0);
                     nc::printw(&format!("ERROR: {}", err));
                     nc::printw("\n\n");
-                },
+                }
             }
         }
         if ctx.player().is_playing() {
@@ -142,7 +146,7 @@ impl State for StationScreen {
             '?' => {
                 nc::printw(&format!("{}\n\n\n", HELP_TEXT));
                 ctx.player().report();
-            },
+            }
             'n' => ctx.player_mut().skip(),
             'p' => ctx.player_mut().toggle_pause(),
             'c' => return Trans::Push(Box::new(StationCreateScreen::new())),
@@ -150,9 +154,11 @@ impl State for StationScreen {
             'a' => return Trans::Push(Box::new(StationAddVarietyScreen::new())),
             's' => return Trans::Push(Box::new(StationSelectScreen::new())),
             'd' => return Trans::Push(Box::new(StationDeleteScreen::new())),
-            rate @ '-' | rate @ '+' => return Trans::Push(Box::new(TrackRateScreen::new(rate == '+'))),
+            rate @ '-' | rate @ '+' => {
+                return Trans::Push(Box::new(TrackRateScreen::new(rate == '+')))
+            }
             'q' => return Trans::Quit,
-            _ => return Trans::None
+            _ => return Trans::None,
         };
 
         Trans::None

@@ -22,8 +22,7 @@ impl State for StationDeleteScreen {
             if let Ok(_) = ctx.pandora().stations().delete(&station) {
                 nc::printw("Done\n");
                 ctx.player_mut().stop();
-            }
-            else {
+            } else {
                 nc::printw("Unable to delete\n");
             }
         }

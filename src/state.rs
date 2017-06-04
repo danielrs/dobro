@@ -39,7 +39,9 @@ pub trait State {
     fn resume(&mut self, _ctx: &mut Context) {}
 
     /// Executed every cycle of the main loop.
-    fn update(&mut self, _ctx: &mut Context) -> Trans { Trans::None }
+    fn update(&mut self, _ctx: &mut Context) -> Trans {
+        Trans::None
+    }
 }
 
 /// Pushdown automaton.
@@ -57,7 +59,9 @@ pub struct Automaton {
 
 impl Automaton {
     /// Creates a new automaton.
-    pub fn new<T>(initial_state: T) -> Self where T: State + 'static {
+    pub fn new<T>(initial_state: T) -> Self
+        where T: State + 'static
+    {
         Automaton {
             running: false,
             state_stack: vec![Box::new(initial_state)],
@@ -113,8 +117,7 @@ impl Automaton {
             }
             if let Some(mut state) = self.state_stack.last_mut() {
                 state.resume(ctx);
-            }
-            else {
+            } else {
                 self.running = false;
             }
         }
