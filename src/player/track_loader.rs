@@ -2,15 +2,14 @@ use pandora::Track;
 use super::audio::Audio;
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Barrier, Mutex};
+use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
 
 /// TrackLoader type for loading tracks in the background.
 pub struct TrackLoader {
     tracklist: Arc<Mutex<VecDeque<Track>>>,
     next: Arc<Mutex<Option<(Track, Audio)>>>,
-    fetching: Arc<Mutex<bool>>,
-    fetching_barrier: Arc<Barrier>,
+    fetching: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl TrackLoader {
@@ -19,8 +18,7 @@ impl TrackLoader {
         let mut track_loader = TrackLoader {
             tracklist: Arc::new(Mutex::new(tracklist)),
             next: Arc::new(Mutex::new(None)),
-            fetching: Arc::new(Mutex::new(false)),
-            fetching_barrier: Arc::new(Barrier::new(2)),
+            fetching: Arc::new((Mutex::new(false), Condvar::new())),
         };
         track_loader.fetch();
         track_loader
@@ -30,11 +28,12 @@ impl TrackLoader {
     /// items available.
     pub fn next(&mut self) -> Option<(Track, Audio)> {
         // Wait until we are done fetching.
-        if *self.fetching.lock().unwrap() {
-            self.fetching_barrier.wait();
-        }
-        else if self.next.lock().unwrap().is_none() {
-            *self.next.lock().unwrap() = pop_tracklist(self.tracklist.clone());
+        {
+            let &(ref lock, ref cvar) = &*self.fetching;
+            let mut fetching = lock.lock().unwrap();
+            while *fetching {
+                fetching = cvar.wait(fetching).unwrap();
+            }
         }
 
         let next = self.next.lock().unwrap().take();
@@ -46,17 +45,21 @@ impl TrackLoader {
     fn fetch(&mut self) {
         let tracklist = self.tracklist.clone();
         let next = self.next.clone();
-        let fetching = self.fetching.clone();
-        let barrier = self.fetching_barrier.clone();
+        let pair = self.fetching.clone();
 
         if tracklist.lock().unwrap().len() > 0 {
-            *fetching.lock().unwrap() = true;
+            let &(ref lock, ref cvar) = &*self.fetching;
+            let mut fetching = lock.lock().unwrap();
+            *fetching = true;
+
             thread::spawn(move || {
                 if next.lock().unwrap().is_none() {
-                    *next.lock().unwrap() = pop_tracklist(tracklist)
+                    *next.lock().unwrap() = pop_tracklist(tracklist);
                 }
-                barrier.wait();
-                *fetching.lock().unwrap() = false;
+                let &(ref lock, ref cvar) = &*pair;
+                let mut fetching = lock.lock().unwrap();
+                *fetching = false;
+                cvar.notify_one();
             });
         }
     }
@@ -77,6 +80,5 @@ fn pop_tracklist(tracklist: Arc<Mutex<VecDeque<Track>>>) -> Option<(Track, Audio
         };
         return Some((track, audio));
     }
-
     None
 }
