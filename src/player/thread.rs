@@ -1,12 +1,12 @@
 use super::audio::Audio;
 use super::error::Error;
+use super::track_loader::TrackLoader;
 use super::PlayerAction;
 use super::state::{PlayerState, PlayerStatus};
 
 use ao;
 use pandora::{Pandora, Station, Track};
 
-use std::collections::VecDeque;
 use std::thread;
 use std::thread::JoinHandle;
 use std::sync::{Arc, Mutex, Condvar};
@@ -85,7 +85,7 @@ pub fn spawn_player(
         };
 
         // Finite state machine loop.
-        let mut fsm = ThreadState::new();
+        let mut fsm = ThreadFSM::new();
         ctx.send_status(PlayerStatus::Standby);
         while !fsm.is_shutdown() {
             fsm = fsm.update(&mut ctx);
@@ -134,7 +134,7 @@ impl ThreadContext {
 }
 
 /// Finite state machine for the thread.
-enum ThreadState {
+enum ThreadFSM {
     Shutdown,
 
     Standby,
@@ -145,27 +145,27 @@ enum ThreadState {
 
     Track {
         station: Station,
-        tracklist: VecDeque<Track>,
+        track_loader: TrackLoader,
     },
 
     Playing {
         station: Station,
-        tracklist: VecDeque<Track>,
+        track_loader: TrackLoader,
         track: Track,
         audio: Audio,
     },
 }
 
-impl ThreadState {
+impl ThreadFSM {
     /// Creates a new state machine in Standby state.
-    pub fn new() -> ThreadState {
-        ThreadState::Standby
+    pub fn new() -> ThreadFSM {
+        ThreadFSM::Standby
     }
 
     /// Returns true if the current state is Standby state.
     pub fn is_standby(&self) -> bool {
         match *self {
-            ThreadState::Standby => true,
+            ThreadFSM::Standby => true,
             _ => false,
         }
     }
@@ -173,7 +173,7 @@ impl ThreadState {
     /// Returns true if the current state is Shutdown state.
     pub fn is_shutdown(&self) -> bool {
         match *self {
-            ThreadState::Shutdown => true,
+            ThreadFSM::Shutdown => true,
             _ => false,
         }
     }
@@ -183,26 +183,26 @@ impl ThreadState {
     // ----------------
 
     /// Consumes the current state and returns a new state.
-    pub fn update(self, ctx: &mut ThreadContext) -> ThreadState {
+    pub fn update(self, ctx: &mut ThreadContext) -> ThreadFSM {
         match self {
-            ThreadState::Standby =>
+            ThreadFSM::Standby =>
                 Self::update_standby(ctx),
 
-            ThreadState::Station { station } =>
+            ThreadFSM::Station { station } =>
                 Self::update_station(ctx, station),
 
-            ThreadState::Track { station, tracklist } =>
-                Self::update_track(ctx, station, tracklist),
+            ThreadFSM::Track { station, track_loader } =>
+                Self::update_track(ctx, station, track_loader),
 
-            ThreadState::Playing { station, tracklist, track, audio} =>
-                Self::update_playing(ctx, station, tracklist, track, audio),
+            ThreadFSM::Playing { station, track_loader, track, audio } =>
+                Self::update_playing(ctx, station, track_loader, track, audio),
 
             _ =>
                 self,
         }
     }
 
-    fn update_standby(ctx: &mut ThreadContext) -> ThreadState {
+    fn update_standby(ctx: &mut ThreadContext) -> ThreadFSM {
         if let Some(PlayerAction::Play(station)) = ctx.action() {
             ctx.state.lock().unwrap().set_station(station.clone());
             ctx.send_status(PlayerStatus::Started(station.clone()));
@@ -213,11 +213,11 @@ impl ThreadState {
         Self::new()
     }
 
-    fn update_station(ctx: &mut ThreadContext, station: Station) -> ThreadState {
+    fn update_station(ctx: &mut ThreadContext, station: Station) -> ThreadFSM {
         ctx.send_status(PlayerStatus::Fetching(station.clone()));
         match ctx.pandora.stations().playlist(&station).list() {
             Ok(tracklist) => {
-                Self::new_track(station, tracklist.into_iter().collect())
+                Self::new_track(station, TrackLoader::new(tracklist.into_iter().collect()))
             },
             Err(e) => {
                 ctx.send_error(e.into());
@@ -229,35 +229,23 @@ impl ThreadState {
     fn update_track(
         ctx: &mut ThreadContext,
         station: Station,
-        mut tracklist: VecDeque<Track>
-    ) -> ThreadState {
-        if let Some((track, audio)) = tracklist.pop_front().and_then(|track| {
-            track.track_audio.clone().map(|audio| (track, audio))
-        }) {
-            let audio = match Audio::new(&audio.high_quality.audio_url) {
-                Ok(audio) => audio,
-                Err(e) => {
-                    ctx.send_error(e.into());
-                    return Self::new_track(station, tracklist);
-                }
-            };
-
+        mut track_loader: TrackLoader,
+    ) -> ThreadFSM {
+        if let Some((track, audio)) = track_loader.next() {
             ctx.state.lock().unwrap().set_track(track.clone());
             ctx.send_status(PlayerStatus::Playing(track.clone()));
-            return Self::new_playing(station, tracklist, track, audio);
+            return Self::new_playing(station, track_loader, track, audio);
         }
-        else {
-            Self::new_station(station)
-        }
+        Self::new_station(station)
     }
 
     fn update_playing(
         ctx: &mut ThreadContext,
         station: Station,
-        tracklist: VecDeque<Track>,
+        track_loader: TrackLoader,
         track: Track,
         mut audio: Audio,
-    ) -> ThreadState {
+    ) -> ThreadFSM {
         // Pauses.
         {
             let &(ref lock, ref cvar) = &*ctx.pause_pair.clone();
@@ -292,7 +280,7 @@ impl ThreadState {
                     ctx.state.lock().unwrap().clear_track();
                     ctx.state.lock().unwrap().clear_progress();
                     ctx.send_status(PlayerStatus::Finished(track.clone()));
-                    return Self::new_track(station, tracklist);
+                    return Self::new_track(station, track_loader);
                 },
 
                 PlayerAction::Exit => {
@@ -315,38 +303,42 @@ impl ThreadState {
             ctx.state.lock().unwrap().clear_track();
             ctx.state.lock().unwrap().clear_progress();
             ctx.send_status(PlayerStatus::Finished(track.clone()));
-            return Self::new_track(station, tracklist);
+            return Self::new_track(station, track_loader);
         }
 
-        return Self::new_playing(station, tracklist, track, audio);
+        return Self::new_playing(station, track_loader, track, audio);
     }
 
     // ----------------
     // Creation of different states.
     // ----------------
 
-    fn new_shutdown() -> ThreadState {
-        ThreadState::Shutdown
+    fn new_shutdown() -> ThreadFSM {
+        ThreadFSM::Shutdown
     }
 
-    fn new_station(station: Station) -> ThreadState {
-        ThreadState::Station {
+    fn new_station(station: Station) -> ThreadFSM {
+        ThreadFSM::Station {
             station: station,
         }
     }
 
-    fn new_track(station: Station, tracklist: VecDeque<Track>) -> ThreadState {
-        ThreadState::Track {
+    fn new_track(station: Station, track_loader: TrackLoader) -> ThreadFSM {
+        ThreadFSM::Track {
             station: station,
-            tracklist: tracklist,
+            track_loader: track_loader,
         }
     }
 
-    fn new_playing(station: Station, tracklist: VecDeque<Track>, track: Track, audio: Audio)
-    -> ThreadState {
-        ThreadState::Playing {
+    fn new_playing(
+        station: Station,
+        track_loader: TrackLoader,
+        track: Track,
+        audio: Audio,
+    ) -> ThreadFSM {
+        ThreadFSM::Playing {
             station: station,
-            tracklist: tracklist,
+            track_loader: track_loader,
             track: track,
             audio: audio,
         }

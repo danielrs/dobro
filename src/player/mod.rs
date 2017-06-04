@@ -2,6 +2,7 @@ mod audio;
 mod error;
 mod state;
 mod thread;
+mod track_loader;
 
 use self::error::Error;
 pub use self::state::{PlayerState, PlayerStatus};
