@@ -1,7 +1,10 @@
 use super::error::Error;
 
 use ao;
-use earwax::{Earwax, Timestamp};
+use earwax::{Earwax, Timestamp, LogLevel};
+
+use std::sync::{Once, ONCE_INIT};
+static START: Once = ONCE_INIT;
 
 /// Type for audio streaming audio that hides the details of earwax and ao-rs handling.
 pub struct Audio {
@@ -14,6 +17,9 @@ pub struct Audio {
 impl Audio {
     /// Tries to initialize a new stream for the given URL.
     pub fn new(url: &str) -> Result<Self, Error> {
+        // #[cfg(not(debug_assertions))]
+        START.call_once(|| { Earwax::set_log_level(LogLevel::Error); });
+
         let earwax = try!(Earwax::new(url));
         let driver = try!(ao::Driver::new());
         let format = ao::Format::new();
