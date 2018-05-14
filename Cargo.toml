@@ -5,6 +5,6 @@ authors = ["Daniel Rivas <ers.daniel+dev@gmail.com>"]
 
 [dependencies]
 ncurses = "5.84.0"
-ao_rs = "0.1.4"
+ao_rs = "0.1.5"
 earwax = "0.1.7"
 pandora = "0.1.0"
